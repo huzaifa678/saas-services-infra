@@ -81,7 +81,7 @@ module "rds_subscription" {
   db_password = var.subscription_db_password
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
-  port        = "5433"
+  port        = "5432"
 }
 
 module "rds_billing" {
@@ -92,7 +92,7 @@ module "rds_billing" {
   db_password = var.billing_db_password
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
-  port        = "5434"
+  port        = "5432"
 }
 
 
@@ -104,7 +104,7 @@ module "rds_usage" {
   db_password = var.usage_db_password
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
-  port        = "5435"
+  port        = "5432"
 }
 
 module "rds_keycloak" {
@@ -115,7 +115,7 @@ module "rds_keycloak" {
   db_password = var.keycloak_db_password
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
-  port        = "5436"
+  port        = "5432"
 }
 
 
