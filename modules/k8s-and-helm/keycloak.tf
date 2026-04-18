@@ -1,4 +1,5 @@
 resource "helm_release" "keycloak" {
+  count            = var.auth_provider == "keycloak" ? 1 : 0
   name             = "keycloak"
   namespace        = "keycloak"
   repository       = "https://charts.bitnami.com/bitnami"
@@ -13,7 +14,7 @@ resource "helm_release" "keycloak" {
     { name = "ingress.enabled",    value = "true" },
     { name = "ingress.ingressClassName", value = "nginx" },
     { name = "ingress.hostname",   value = "keycloak.local" },
-    { name = "externalDatabase.host", value = module.rds_keycloak.endpoint },
+    { name = "externalDatabase.host", value = var.keycloak_db_endpoint },
     { name = "externalDatabase.port", value = "5436" },
   ]
 

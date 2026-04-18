@@ -39,3 +39,12 @@ variable "external_dns_irsa_role_arn" {
 variable "aws_lb_controller_irsa_role_arn" {
   type = string
 }
+
+variable "auth_provider" {
+  type = string
+}
+
+variable "keycloak_db_endpoint" {
+  type    = string
+  default = ""
+}

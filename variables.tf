@@ -122,3 +122,14 @@ variable "openai_api_key" {
   type      = string
   sensitive = true
 }
+
+variable "auth_provider" {
+  type        = string
+  default     = "keycloak"
+  description = "Which auth provider to deploy: 'keycloak' or 'auth-service'"
+
+  validation {
+    condition     = contains(["keycloak", "auth-service"], var.auth_provider)
+    error_message = "auth_provider must be 'keycloak' or 'auth-service'."
+  }
+}

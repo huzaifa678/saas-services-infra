@@ -8,12 +8,22 @@ output "eks_cluster_endpoint" {
 
 output "auth_db" {
   sensitive = true
-  value = {
-    endpoint = module.rds_auth.endpoint
-    db_name  = module.rds_auth.db_name
-    username = module.rds_auth.username
-    password = module.rds_auth.password
-  }
+  value = var.auth_provider == "auth-service" ? {
+    endpoint = module.rds_auth[0].endpoint
+    db_name  = module.rds_auth[0].db_name
+    username = module.rds_auth[0].username
+    password = module.rds_auth[0].password
+  } : null
+}
+
+output "keycloak_db" {
+  sensitive = true
+  value = var.auth_provider == "keycloak" ? {
+    endpoint = module.rds_keycloak[0].endpoint
+    db_name  = module.rds_keycloak[0].db_name
+    username = module.rds_keycloak[0].username
+    password = module.rds_keycloak[0].password
+  } : null
 }
 
 output "subscription_db" {

@@ -60,9 +60,12 @@ module "k8s" {
   cert_manager_irsa_role_arn      = module.eks.cert_manager_irsa_role_arn
   external_dns_irsa_role_arn      = module.eks.external_dns_irsa_role_arn
   aws_lb_controller_irsa_role_arn = module.eks.aws_lb_controller_irsa_role_arn
+  auth_provider                   = var.auth_provider
+  keycloak_db_endpoint            = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""
 }
 
 module "rds_auth" {
+  count       = var.auth_provider == "auth-service" ? 1 : 0
   source      = "./modules/rds"
   name        = "saas-auth-db"
   db_name     = "auth_db"
@@ -108,6 +111,7 @@ module "rds_usage" {
 }
 
 module "rds_keycloak" {
+  count       = var.auth_provider == "keycloak" ? 1 : 0
   source      = "./modules/rds"
   name        = "keycloak-db"
   db_name     = "keycloak_db"

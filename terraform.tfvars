@@ -12,6 +12,8 @@ desired_size       = 3
 min_size           = 1
 max_size           = 5
 
+auth_provider = "keycloak"
+
 # ─── Sensitive values — possibly to set via env vars or CI/CD secrets ────────────────────
 # auth_db_password           = ""  # TF_VAR_auth_db_password
 # subscription_db_password   = ""  # TF_VAR_subscription_db_password
