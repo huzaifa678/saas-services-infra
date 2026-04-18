@@ -5,8 +5,10 @@ vpc_cidr        = "10.1.0.0/16"
 public_subnets  = ["10.1.1.0/24", "10.1.2.0/24"]
 private_subnets = ["10.1.3.0/24", "10.1.4.0/24"]
 
-# Restrict cluster API access to your office/VPN CIDRs
-cluster_endpoint_public_access_cidrs = ["YOUR_OFFICE_CIDR/32"]
+cluster_endpoint_public_access_cidrs = [
+  "10.1.0.0/16",   # VPC internal
+  "100.64.0.0/10", # VPN/Tailscale CGNAT range
+]
 
 node_instance_type = "t3.large"
 desired_size       = 3
