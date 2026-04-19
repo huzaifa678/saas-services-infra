@@ -71,10 +71,6 @@ rule "aws_eks_node_group_invalid_ami_type" {
 
 # ── AWS: IAM ──────────────────────────────────────────────────────────────────
 
-rule "aws_iam_policy_invalid_resource" {
-  enabled = true
-}
-
 rule "aws_iam_role_invalid_assume_role_policy" {
   enabled = true
 }
