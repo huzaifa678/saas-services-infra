@@ -15,7 +15,7 @@ variable "otel_collector_irsa_role_arn" {
 
 variable "prometheus_endpoint" {
   type        = string
-  description = "AMP remote write endpoint (from grafana module)"
+  description = "AMP remote write endpoint"
   default     = null
 }
 

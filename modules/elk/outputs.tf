@@ -9,3 +9,7 @@ output "opensearch_dashboard_endpoint" {
 output "domain_arn" {
   value = aws_opensearch_domain.this.arn
 }
+
+output "prometheus_workspace_endpoint" {
+  value = aws_prometheus_workspace.this.prometheus_endpoint
+}

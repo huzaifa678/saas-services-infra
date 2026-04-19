@@ -189,8 +189,8 @@ module "otel" {
 
   cluster_name                 = module.eks.eks_cluster_name
   otel_collector_irsa_role_arn = try(module.grafana[0].otel_collector_irsa_role_arn, null)
-  prometheus_endpoint           = try(module.grafana[0].prometheus_workspace_endpoint, null)
-  opensearch_endpoint           = try(module.elk[0].opensearch_endpoint, null)
+  prometheus_endpoint          = local.prometheus_endpoint
+  opensearch_endpoint          = try(module.elk[0].opensearch_endpoint, null)
   opensearch_username          = var.opensearch_master_username
   opensearch_password          = var.opensearch_master_password
   region                       = var.region
@@ -199,14 +199,6 @@ module "otel" {
 
 resource "aws_glue_registry" "schema_registry" {
   registry_name = "saas-schema-registry"
-}
-
-locals {
-  observability_map = {
-    grafana = var.observability == "grafana" ? true : false
-    elk     = var.observability == "elk" ? true : false
-  }
-  services = ["api-gateway", "auth-service", "subscription-service", "billing-service", "usage-service"]
 }
 
 resource "aws_ecr_repository" "services" {
