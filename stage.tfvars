@@ -13,7 +13,7 @@ min_size           = 1
 max_size           = 5
 
 auth_provider = "keycloak"
-observability_tool = "elk"
+observability = "elk"
 
 # ─── Sensitive values — possibly to set via env vars or CI/CD secrets ────────────────────
 # auth_db_password           = ""  # TF_VAR_auth_db_password
