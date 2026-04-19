@@ -167,7 +167,7 @@ module "kafka" {
 }
 
 module "grafana" {
-  for_each = local.observability_map.grafana ? { "enabled" = true } : {}
+  count = local.observability_map.grafana ? 1 : 0
   source            = "./modules/grafana"
   workspace_name    = "saas-grafana"
   oidc_provider_arn = module.eks.oidc_provider_arn
@@ -175,7 +175,7 @@ module "grafana" {
 }
 
 module "elk" {
-  for_each = local.observability_map.elk ? { "enabled" = true } : {}
+  count = local.observability_map.elk ? 1 : 0
   source               = "./modules/elk"
   domain_name          = "saas-opensearch"
   subnet_ids           = module.vpc.private_subnets
@@ -188,9 +188,9 @@ module "otel" {
   source = "./modules/otel"
 
   cluster_name                 = module.eks.eks_cluster_name
-  otel_collector_irsa_role_arn = try(module.grafana["enabled"].otel_collector_irsa_role_arn, null)
-  prometheus_endpoint          = try(module.grafana["enabled"].prometheus_workspace_endpoint, null)
-  opensearch_endpoint          = try(module.elk["enabled"].opensearch_endpoint, null)
+  otel_collector_irsa_role_arn = try(module.grafana[0].otel_collector_irsa_role_arn, null)
+  prometheus_endpoint           = try(module.grafana[0].prometheus_workspace_endpoint, null)
+  opensearch_endpoint           = try(module.elk[0].opensearch_endpoint, null)
   opensearch_username          = var.opensearch_master_username
   opensearch_password          = var.opensearch_master_password
   region                       = var.region

@@ -69,19 +69,19 @@ output "schema_registry_arn" {
 }
 
 output "grafana_endpoint" {
-  value = module.grafana.grafana_workspace_endpoint
+  value = try(module.grafana[0].grafana_workspace_endpoint, null)
 }
 
 output "prometheus_endpoint" {
-  value = module.grafana.prometheus_workspace_endpoint
+  value = try(module.grafana[0].prometheus_workspace_endpoint, null)
 }
 
 output "opensearch_endpoint" {
-  value = module.elk.opensearch_endpoint
+  value = try(module.elk[0].opensearch_endpoint, null)
 }
 
 output "opensearch_dashboard_endpoint" {
-  value = module.elk.opensearch_dashboard_endpoint
+  value = try(module.elk[0].opensearch_dashboard_endpoint, null)
 }
 
 # ─── ECR ─────────────────────────────────────────────────────────────────────
