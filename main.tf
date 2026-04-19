@@ -179,10 +179,6 @@ module "otel" {
   observability                = var.observability
 }
 
-resource "aws_glue_registry" "schema_registry" {
-  registry_name = "saas-schema-registry"
-}
-
 resource "aws_ecr_repository" "services" {
   for_each             = toset(local.services)
   name                 = each.key
