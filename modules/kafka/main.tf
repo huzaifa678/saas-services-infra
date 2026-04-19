@@ -44,6 +44,5 @@ resource "aws_msk_configuration" "this" {
     min.insync.replicas=1
     num.partitions=3
     log.retention.hours=168
-    process.roles=broker,controller
   PROPS
 }
