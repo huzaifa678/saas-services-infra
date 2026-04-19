@@ -5,7 +5,7 @@ vpc_cidr        = "10.0.0.0/16"
 public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnets = ["10.0.3.0/24", "10.0.4.0/24"]
 
-cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+enable_public_access = true
 
 node_instance_type = "t3.small"
 desired_size       = 2

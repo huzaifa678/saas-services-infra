@@ -20,5 +20,9 @@ resource "aws_elasticache_replication_group" "this" {
   parameter_group_name       = "default.redis7"
   apply_immediately          = true
 
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
+  kms_key_id                 = var.kms_key_arn
+
   tags = { Name = var.name }
 }

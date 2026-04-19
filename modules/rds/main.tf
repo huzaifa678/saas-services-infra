@@ -26,9 +26,19 @@ resource "aws_db_instance" "this" {
 
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [var.rds_sg_id]
-  
+
+  storage_encrypted = true
+  kms_key_id        = var.kms_key_arn
+
+  backup_retention_period = 7
+  deletion_protection     = true
+  iam_database_authentication_enabled = true
+
+  performance_insights_enabled          = true
+  performance_insights_kms_key_id       = var.kms_key_arn
+  performance_insights_retention_period = 7
+
   skip_final_snapshot = true
-  deletion_protection = false
 
   tags = { Name = var.name }
 }

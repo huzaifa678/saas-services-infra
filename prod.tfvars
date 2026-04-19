@@ -5,10 +5,9 @@ vpc_cidr        = "10.1.0.0/16"
 public_subnets  = ["10.1.1.0/24", "10.1.2.0/24"]
 private_subnets = ["10.1.3.0/24", "10.1.4.0/24"]
 
-cluster_endpoint_public_access_cidrs = [
-  "10.1.0.0/16",   # VPC internal
-  "100.64.0.0/10", # VPN/Tailscale CGNAT range
-]
+kubernetes_version = "1.32"
+
+enable_public_access = false
 
 node_instance_type = "t3.large"
 desired_size       = 3
@@ -17,6 +16,8 @@ max_size           = 10
 
 # Prod uses Keycloak for enterprise SSO
 auth_provider = "keycloak"
+
+observability = "elk"
 
 # ─── Sensitive — set via TF_VAR_* env vars or CI/CD secrets ──────────────────
 # keycloak_db_password       = ""  # TF_VAR_keycloak_db_password

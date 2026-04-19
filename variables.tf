@@ -28,9 +28,9 @@ variable "private_subnets" {
   default = ["10.0.3.0/24", "10.0.4.0/24"]
 }
 
-variable "cluster_endpoint_public_access_cidrs" {
-  type    = list(string)
-  default = ["0.0.0.0/0"]
+variable "enable_public_access" {
+  type    = bool
+  default = false
 }
 
 variable "node_instance_type" {

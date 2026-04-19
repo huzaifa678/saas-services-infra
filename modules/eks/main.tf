@@ -3,12 +3,21 @@ resource "aws_eks_cluster" "eks_cluster" {
   role_arn = aws_iam_role.eks_cluster_role.arn
   version  = var.kubernetes_version
 
+
   vpc_config {
-    subnet_ids                    = var.private_subnets
-    endpoint_private_access       = true
-    endpoint_public_access        = true
-    public_access_cidrs           = var.cluster_endpoint_public_access_cidrs
+    subnet_ids              = var.private_subnets
+    endpoint_private_access = true
+    endpoint_public_access  = var.enable_public_access
   }
+
+  encryption_config {
+    resources = ["secrets"]
+    provider {
+      key_arn = var.kms_key_arn
+    }
+  }
+
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   access_config {
     authentication_mode                         = "API"
@@ -29,7 +38,7 @@ data "aws_ssm_parameter" "eks_al2023_ami" {
 }
 
 resource "aws_launch_template" "eks_nodes" {
-  name_prefix = "eks-nodes-lt"
+  name_prefix   = "eks-nodes-lt"
   instance_type = var.node_instance_type
 
   vpc_security_group_ids = [
@@ -38,6 +47,12 @@ resource "aws_launch_template" "eks_nodes" {
   ]
 
   image_id = data.aws_ssm_parameter.eks_al2023_ami.value
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   user_data = base64encode(templatefile("${path.module}/user_data.tpl", {
     cluster_name     = aws_eks_cluster.eks_cluster.name

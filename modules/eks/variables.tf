@@ -14,10 +14,10 @@ variable "private_subnets" {
   description = "Private subnet IDs"
 }
 
-variable "cluster_endpoint_public_access_cidrs" {
-  type        = list(string)
-  description = "CIDRs allowed to access the EKS public endpoint"
-  default     = ["0.0.0.0/0"]
+variable "enable_public_access" {
+  type        = bool
+  description = "allow cluster on the internet"
+  default     = false
 }
 
 variable "vpc_id" {
@@ -49,4 +49,14 @@ variable "max_size" {
 variable "region" {
   type    = string
   default = "us-east-1"
+}
+
+variable "kms_key_arn" {
+  type        = string
+  description = "KMS key ARN for EKS secret encryption"
+}
+
+variable "vpc_cidr" {
+  type        = string
+  description = "VPC CIDR block for scoped egress rules"
 }

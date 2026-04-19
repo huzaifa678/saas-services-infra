@@ -25,13 +25,28 @@ resource "aws_msk_cluster" "this" {
   }
 
   encryption_info {
+    encryption_at_rest_kms_key_arn = var.kms_key_arn
     encryption_in_transit {
-      client_broker = "PLAINTEXT"
+      client_broker = "TLS"
       in_cluster    = true
     }
   }
 
+  logging_info {
+    broker_logs {
+      cloudwatch_logs {
+        enabled   = true
+        log_group = aws_cloudwatch_log_group.msk.name
+      }
+    }
+  }
+
   tags = { Name = var.cluster_name }
+}
+
+resource "aws_cloudwatch_log_group" "msk" {
+  name              = "/aws/msk/${var.cluster_name}"
+  retention_in_days = 7
 }
 
 resource "aws_msk_configuration" "this" {

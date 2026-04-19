@@ -1,8 +1,22 @@
 data "aws_availability_zones" "available" {}
+data "aws_caller_identity" "current" {}
 
 locals {
   ordered_public_subnets  = sort(var.public_subnets)
   ordered_private_subnets = sort(var.private_subnets)
+}
+
+resource "aws_kms_key" "main" {
+  description             = "Shared KMS key for ${var.cluster_name} encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = { Name = "${var.cluster_name}-kms" }
+}
+
+resource "aws_kms_alias" "main" {
+  name          = "alias/${var.cluster_name}"
+  target_key_id = aws_kms_key.main.key_id
 }
 
 module "vpc" {
@@ -18,6 +32,13 @@ module "vpc" {
   single_nat_gateway   = true
   enable_dns_hostnames = true
   enable_dns_support   = true
+
+  # VPC Flow Logs
+  enable_flow_log                      = true
+  flow_log_destination_type            = "cloud-watch-logs"
+  flow_log_destination_arn             = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  flow_log_cloudwatch_iam_role_arn     = aws_iam_role.vpc_flow_log.arn
+  flow_log_traffic_type                = "ALL"
 
   public_subnet_tags = {
     "kubernetes.io/role/elb"                    = "1"
@@ -38,13 +59,15 @@ module "eks" {
   cluster_name                         = var.cluster_name
   kubernetes_version                   = var.kubernetes_version
   private_subnets                      = module.vpc.private_subnets
-  cluster_endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
   vpc_id                               = module.vpc.vpc_id
+  enable_public_access                 = var.enable_public_access
+  vpc_cidr                             = var.vpc_cidr
   node_instance_type                   = var.node_instance_type
   desired_size                         = var.desired_size
   min_size                             = var.min_size
   max_size                             = var.max_size
   region                               = var.region
+  kms_key_arn                          = aws_kms_key.main.arn
 }
 
 module "k8s" {
@@ -74,6 +97,7 @@ module "rds_auth" {
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
   port        = "5432"
+  kms_key_arn = aws_kms_key.main.arn
 }
 
 module "rds_subscription" {
@@ -85,6 +109,7 @@ module "rds_subscription" {
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
   port        = "5432"
+  kms_key_arn = aws_kms_key.main.arn
 }
 
 module "rds_billing" {
@@ -96,6 +121,7 @@ module "rds_billing" {
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
   port        = "5432"
+  kms_key_arn = aws_kms_key.main.arn
 }
 
 module "rds_usage" {
@@ -107,6 +133,7 @@ module "rds_usage" {
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
   port        = "5432"
+  kms_key_arn = aws_kms_key.main.arn
 }
 
 module "rds_keycloak" {
@@ -119,6 +146,7 @@ module "rds_keycloak" {
   subnet_ids  = module.vpc.private_subnets
   rds_sg_id   = module.eks.rds_sg_id
   port        = "5432"
+  kms_key_arn = aws_kms_key.main.arn
 }
 
 module "elasticache" {
@@ -126,6 +154,7 @@ module "elasticache" {
   name        = "saas-redis"
   subnet_ids  = module.vpc.private_subnets
   redis_sg_id = module.eks.redis_sg_id
+  kms_key_arn = aws_kms_key.main.arn
 }
 
 module "kafka" {
@@ -134,6 +163,7 @@ module "kafka" {
   subnet_ids             = slice(module.vpc.private_subnets, 0, 2)
   msk_sg_id              = module.eks.msk_sg_id
   number_of_broker_nodes = 2
+  kms_key_arn            = aws_kms_key.main.arn
 }
 
 module "grafana" {
@@ -154,7 +184,6 @@ module "elk" {
   master_user_password = var.opensearch_master_password
 }
 
-
 module "otel" {
   source = "./modules/otel"
 
@@ -165,7 +194,7 @@ module "otel" {
   opensearch_username          = var.opensearch_master_username
   opensearch_password          = var.opensearch_master_password
   region                       = var.region
-  observability            = var.observability 
+  observability                = var.observability
 }
 
 resource "aws_glue_registry" "schema_registry" {
@@ -177,19 +206,21 @@ locals {
     grafana = var.observability == "grafana" ? true : false
     elk     = var.observability == "elk" ? true : false
   }
-}
-
-locals {
   services = ["api-gateway", "auth-service", "subscription-service", "billing-service", "usage-service"]
 }
 
 resource "aws_ecr_repository" "services" {
   for_each             = toset(local.services)
   name                 = each.key
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "KMS"
+    kms_key         = aws_kms_key.main.arn
   }
 
   tags = { Name = each.key }

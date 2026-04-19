@@ -36,6 +36,11 @@ variable "rds_sg_id" {
 }
 
 variable "port" {
-  type = string
+  type        = string
   description = "Port number for DB"
+}
+
+variable "kms_key_arn" {
+  type        = string
+  description = "KMS key ARN for RDS storage and performance insights encryption"
 }
