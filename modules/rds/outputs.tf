@@ -11,6 +11,6 @@ output "username" {
 }
 
 output "password" {
-  value     = coalesce(var.db_password, random_password.db_password.result)
+  value     = aws_db_instance.this.password
   sensitive = true
 }

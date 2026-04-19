@@ -64,6 +64,10 @@ output "kafka_bootstrap_brokers" {
   value = module.kafka.bootstrap_brokers
 }
 
+output "schema_registry_arn" {
+  value = aws_glue_registry.schema_registry.arn
+}
+
 output "grafana_endpoint" {
   value = module.grafana.grafana_workspace_endpoint
 }
@@ -78,11 +82,6 @@ output "opensearch_endpoint" {
 
 output "opensearch_dashboard_endpoint" {
   value = module.elk.opensearch_dashboard_endpoint
-}
-
-
-output "schema_registry_arn" {
-  value = aws_glue_registry.schema_registry.arn
 }
 
 # ─── ECR ─────────────────────────────────────────────────────────────────────

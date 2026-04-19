@@ -64,3 +64,13 @@ resource "aws_iam_role_policy_attachment" "otel_collector_amp_write" {
   role       = aws_iam_role.otel_collector_irsa.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess"
 }
+
+resource "aws_iam_role_policy_attachment" "otel_collector_xray_write" {
+  role       = aws_iam_role.otel_collector_irsa.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "otel_collector_cloudwatch_write" {
+  role       = aws_iam_role.otel_collector_irsa.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}

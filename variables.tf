@@ -83,39 +83,14 @@ variable "keycloak_db_password" {
   sensitive = true
 }
 
-variable "auth_db_port" {
-  type = string
-  default = null
-  sensitive = false
-}
-
-variable "subscription_db_port" {
-  type = string
-  default = null
-  sensitive = false
-}
-
-variable "billing_db_port" {
-  type = string
-  default = null
-  sensitive = false
-}
-
-variable "usage_db_port" {
-  type = string
-  default = null
-  sensitive = false
-}
-
-variable "keycloak_db_port" {
-  type = string
-  default = null
-  sensitive = false
-}
-
 variable "opensearch_master_password" {
   type      = string
   sensitive = true
+}
+
+variable "opensearch_master_username" {
+  type    = string
+  default = "admin"
 }
 
 variable "openai_api_key" {
@@ -131,5 +106,16 @@ variable "auth_provider" {
   validation {
     condition     = contains(["keycloak", "auth-service"], var.auth_provider)
     error_message = "auth_provider must be 'keycloak' or 'auth-service'."
+  }
+}
+
+variable "observability" {
+  type        = string
+  default     = "elk"
+  description = "Which observability stack to deploy: 'elk' or 'grafana'"
+
+  validation {
+    condition     = contains(["elk", "grafana"], var.observability)
+    error_message = "observability must be 'elk' or 'grafana'."
   }
 }

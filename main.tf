@@ -98,7 +98,6 @@ module "rds_billing" {
   port        = "5432"
 }
 
-
 module "rds_usage" {
   source      = "./modules/rds"
   name        = "saas-usage-db"
@@ -122,7 +121,6 @@ module "rds_keycloak" {
   port        = "5432"
 }
 
-
 module "elasticache" {
   source      = "./modules/elasticache"
   name        = "saas-redis"
@@ -139,6 +137,7 @@ module "kafka" {
 }
 
 module "grafana" {
+  for_each = local.observability_map.grafana ? { "enabled" = true } : {}
   source            = "./modules/grafana"
   workspace_name    = "saas-grafana"
   oidc_provider_arn = module.eks.oidc_provider_arn
@@ -146,16 +145,38 @@ module "grafana" {
 }
 
 module "elk" {
+  for_each = local.observability_map.elk ? { "enabled" = true } : {}
   source               = "./modules/elk"
   domain_name          = "saas-opensearch"
   subnet_ids           = module.vpc.private_subnets
   opensearch_sg_id     = module.eks.opensearch_sg_id
+  master_user_name     = var.opensearch_master_username
   master_user_password = var.opensearch_master_password
 }
 
 
+module "otel" {
+  source = "./modules/otel"
+
+  cluster_name                 = module.eks.eks_cluster_name
+  otel_collector_irsa_role_arn = try(module.grafana["enabled"].otel_collector_irsa_role_arn, null)
+  prometheus_endpoint          = try(module.grafana["enabled"].prometheus_workspace_endpoint, null)
+  opensearch_endpoint          = try(module.elk["enabled"].opensearch_endpoint, null)
+  opensearch_username          = var.opensearch_master_username
+  opensearch_password          = var.opensearch_master_password
+  region                       = var.region
+  observability            = var.observability 
+}
+
 resource "aws_glue_registry" "schema_registry" {
   registry_name = "saas-schema-registry"
+}
+
+locals {
+  observability_map = {
+    grafana = var.observability == "grafana" ? true : false
+    elk     = var.observability == "elk" ? true : false
+  }
 }
 
 locals {
