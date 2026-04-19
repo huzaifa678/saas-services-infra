@@ -1,4 +1,9 @@
 locals {
+  ordered_public_subnets  = sort(var.public_subnets)
+  ordered_private_subnets = sort(var.private_subnets)
+}
+
+locals {
   observability_map = {
     grafana = var.observability == "grafana" ? true : false
     elk     = var.observability == "elk" ? true : false

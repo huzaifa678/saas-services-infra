@@ -1,11 +1,6 @@
 data "aws_availability_zones" "available" {}
 data "aws_caller_identity" "current" {}
 
-locals {
-  ordered_public_subnets  = sort(var.public_subnets)
-  ordered_private_subnets = sort(var.private_subnets)
-}
-
 resource "aws_kms_key" "main" {
   description             = "Shared KMS key for ${var.cluster_name} encryption"
   deletion_window_in_days = 30
