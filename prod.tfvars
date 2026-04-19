@@ -8,6 +8,7 @@ private_subnets = ["10.1.3.0/24", "10.1.4.0/24"]
 kubernetes_version = "1.32"
 
 enable_public_access = false
+enable_ssm_access    = true   # Zero-VPN: private kubectl via SSM port-forward (prod only)
 
 node_instance_type = "t3.large"
 desired_size       = 3

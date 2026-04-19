@@ -43,6 +43,7 @@ module "eks" {
   private_subnets                      = module.vpc.private_subnets
   vpc_id                               = module.vpc.vpc_id
   enable_public_access                 = var.enable_public_access
+  enable_ssm_access                    = var.enable_ssm_access
   vpc_cidr                             = var.vpc_cidr
   node_instance_type                   = var.node_instance_type
   desired_size                         = var.desired_size

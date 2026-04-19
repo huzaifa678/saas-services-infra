@@ -33,6 +33,12 @@ variable "enable_public_access" {
   default = false
 }
 
+variable "enable_ssm_access" {
+  type        = bool
+  description = "Enable SSM VPC endpoints + IRSA for zero-VPN private EKS access (prod only)"
+  default     = false
+}
+
 variable "node_instance_type" {
   type    = string
   default = "t3.medium"

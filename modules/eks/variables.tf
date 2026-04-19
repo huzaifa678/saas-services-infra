@@ -60,3 +60,9 @@ variable "vpc_cidr" {
   type        = string
   description = "VPC CIDR block for scoped egress rules"
 }
+
+variable "enable_ssm_access" {
+  type        = bool
+  description = "Create SSM VPC endpoints + IRSA policy for zero-VPN private kubectl access (prod only)"
+  default     = false
+}

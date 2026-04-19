@@ -49,3 +49,7 @@ output "oidc_provider_arn" {
 output "oidc_issuer" {
   value = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
+
+output "ssm_sg_id" {
+  value = var.enable_ssm_access ? aws_security_group.ssm_endpoints_sg[0].id : null
+}
