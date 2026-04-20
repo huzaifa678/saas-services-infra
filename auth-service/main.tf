@@ -1,5 +1,5 @@
-data "aws_secretsmanager_secret_version" "billing_db" {
-  secret_id = local.common.billing_db_secret_arn
+data "aws_secretsmanager_secret_version" "auth_db" {
+  secret_id = local.common.auth_db_secret_arn
 }
 
 resource "aws_secretsmanager_secret" "auth_service" {
