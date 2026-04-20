@@ -1,10 +1,5 @@
-data "terraform_remote_state" "common" {
-  backend = "s3"
-  config = {
-    bucket = "saas-state-bucket-399849"
-    key    = "saas-services/terraform.tfstate"
-    region = "us-east-1"
-  }
+data "aws_secretsmanager_secret_version" "subscription_db" {
+  secret_id = local.common.subscription_db_secret_arn
 }
 
 resource "aws_secretsmanager_secret" "subscription_service" {
