@@ -1,4 +1,3 @@
 locals {
-  common = data.terraform_remote_state.common.outputs
-  db     = local.common.auth_db
+  db = jsondecode(data.aws_secretsmanager_secret_version.billing_db.secret_string)
 }

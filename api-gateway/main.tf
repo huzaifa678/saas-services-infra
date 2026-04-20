@@ -7,6 +7,10 @@ data "terraform_remote_state" "common" {
   }
 }
 
+data "aws_secretsmanager_secret_version" "api_gateway_input" {
+  secret_id = "saas/api-gateway-input"
+}
+
 locals {
   common = data.terraform_remote_state.common.outputs
 }
@@ -19,8 +23,8 @@ resource "aws_secretsmanager_secret" "api_gateway" {
 resource "aws_secretsmanager_secret_version" "api_gateway" {
   secret_id = aws_secretsmanager_secret.api_gateway.id
   secret_string = jsonencode({
-    JWT_SECRET        = var.gateway_jwt_secret
-    REDIS_URL         = local.common.redis_endpoint
+    JWT_SECRET        = local.api_input.JWT_SECRET
+    REDIS_URL         = "redis://${local.common.redis_endpoint}:6379"
     KEYCLOAK_JWKS_URL = var.keycloak_jwks_url
   })
 }
