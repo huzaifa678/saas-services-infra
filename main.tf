@@ -173,13 +173,15 @@ module "elk" {
   opensearch_sg_id     = module.eks.opensearch_sg_id
   master_user_name     = var.opensearch_master_username
   master_user_password = var.opensearch_master_password
+  oidc_provider_arn    = module.eks.oidc_provider_arn
+  oidc_issuer          = module.eks.oidc_issuer
 }
 
 module "otel" {
   source = "./modules/otel"
 
   cluster_name                 = module.eks.eks_cluster_name
-  otel_collector_irsa_role_arn = try(module.grafana[0].otel_collector_irsa_role_arn, null)
+  otel_collector_irsa_role_arn = try(module.elk[0].otel_collector_irsa_role_arn, try(module.grafana[0].otel_collector_irsa_role_arn, null))
   prometheus_endpoint          = local.prometheus_endpoint
   opensearch_endpoint          = try(module.elk[0].opensearch_endpoint, null)
   opensearch_username          = var.opensearch_master_username

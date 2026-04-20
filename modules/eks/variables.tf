@@ -70,7 +70,7 @@ variable "enable_verified_access" {
 variable "ava_oidc_issuer" {
   type        = string
   description = "Keycloak OIDC issuer URL for Verified Access trust provider"
-  default     = ""
+  default     = "oidc-url"
 }
 
 variable "ava_oidc_client_id" {

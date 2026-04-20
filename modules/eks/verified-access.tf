@@ -80,15 +80,12 @@ resource "aws_security_group" "ava_endpoint_sg" {
 resource "aws_verifiedaccess_endpoint" "eks_api" {
   count = var.enable_verified_access ? 1 : 0
 
-  verified_access_instance_id = aws_verifiedaccess_instance.this[0].id
-  verified_access_group_id    = aws_verifiedaccess_group.eks[0].id
+  verified_access_group_id = aws_verifiedaccess_group.eks[0].id
 
   endpoint_type   = "network-interface"
-  attachment_type  = "vpc"
+  attachment_type = "vpc"
 
   description = "Private EKS API endpoint"
-
-  
 
   security_group_ids = [aws_security_group.ava_endpoint_sg[0].id]
 }

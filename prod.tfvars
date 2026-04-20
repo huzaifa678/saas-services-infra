@@ -18,7 +18,7 @@ ava_subnet_ids = ["10.1.3.0/24", "10.1.4.0/24"]
 
 # ─── Keycloak → Auth0 OIDC federation ────────────────────────
 keycloak_hostname = ""
-auth0_issuer      = "https://DOMAIN.auth0.com" // 
+ava_oidc_issuer   = "https://DOMAIN.auth0.com" // 
 # auth0_client_id     = ""   # TF_VAR_auth0_client_id
 # auth0_client_secret = ""   # TF_VAR_auth0_client_secret
 
