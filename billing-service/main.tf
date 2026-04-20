@@ -7,11 +7,6 @@ data "terraform_remote_state" "common" {
   }
 }
 
-locals {
-  common = data.terraform_remote_state.common.outputs
-  db     = local.common.billing_db
-}
-
 resource "aws_secretsmanager_secret" "billing_service" {
   name                    = "saas/billing-service"
   recovery_window_in_days = 7

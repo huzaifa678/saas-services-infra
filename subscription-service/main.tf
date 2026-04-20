@@ -7,11 +7,6 @@ data "terraform_remote_state" "common" {
   }
 }
 
-locals {
-  common = data.terraform_remote_state.common.outputs
-  db     = local.common.subscription_db
-}
-
 resource "aws_secretsmanager_secret" "subscription_service" {
   name                    = "saas/subscription-service"
   recovery_window_in_days = 7

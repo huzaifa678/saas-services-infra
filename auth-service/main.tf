@@ -7,11 +7,6 @@ data "terraform_remote_state" "common" {
   }
 }
 
-locals {
-  common = data.terraform_remote_state.common.outputs
-  db     = local.common.auth_db
-}
-
 resource "aws_secretsmanager_secret" "auth_service" {
   name                    = "saas/auth-service"
   recovery_window_in_days = 7
