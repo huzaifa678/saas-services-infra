@@ -167,6 +167,7 @@ backend "s3" {
 - [ ] CI/CD pipeline integration
 - [ ] Disaster recovery / backup policies
 - [ ] Secure password protection for RDS
+- [ ] Loose coupling of services credentials from remote backend s3 of the main infra
 
 ---
 
