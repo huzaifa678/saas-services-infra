@@ -43,7 +43,11 @@ module "eks" {
   private_subnets                      = module.vpc.private_subnets
   vpc_id                               = module.vpc.vpc_id
   enable_public_access                 = var.enable_public_access
-  enable_ssm_access                    = var.enable_ssm_access
+  enable_verified_access               = var.enable_verified_access
+  ava_oidc_issuer                      = var.ava_oidc_issuer
+  ava_oidc_client_id                   = var.ava_oidc_client_id
+  ava_oidc_client_secret               = var.ava_oidc_client_secret
+  ava_subnet_ids                       = var.ava_subnet_ids
   vpc_cidr                             = var.vpc_cidr
   node_instance_type                   = var.node_instance_type
   desired_size                         = var.desired_size
@@ -68,6 +72,10 @@ module "k8s" {
   aws_lb_controller_irsa_role_arn = module.eks.aws_lb_controller_irsa_role_arn
   auth_provider                   = var.auth_provider
   keycloak_db_endpoint            = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""
+  keycloak_hostname               = var.keycloak_hostname
+  auth0_issuer                    = var.auth0_issuer
+  auth0_client_id                 = var.auth0_client_id
+  auth0_client_secret             = var.auth0_client_secret
 }
 
 module "rds_auth" {

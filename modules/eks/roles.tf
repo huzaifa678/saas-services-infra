@@ -196,29 +196,3 @@ resource "aws_iam_role_policy_attachment" "aws_lb_controller_attach" {
   policy_arn = aws_iam_policy.aws_lb_controller_policy.arn
   role       = aws_iam_role.aws_lb_controller_irsa.name
 }
-
-# Zero VPN config (prod only)
-resource "aws_iam_role" "ssm_irsa" {
-  count = var.enable_ssm_access ? 1 : 0
-  name  = "${var.cluster_name}-ssm-irsa"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
-      Action    = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "${replace(data.aws_eks_cluster.this.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:ssm-sa"
-        }
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_irsa_policy" {
-  count      = var.enable_ssm_access ? 1 : 0
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  role       = aws_iam_role.ssm_irsa[0].name
-}

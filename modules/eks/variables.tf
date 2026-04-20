@@ -61,8 +61,33 @@ variable "vpc_cidr" {
   description = "VPC CIDR block for scoped egress rules"
 }
 
-variable "enable_ssm_access" {
+variable "enable_verified_access" {
   type        = bool
-  description = "Create SSM VPC endpoints + IRSA policy for zero-VPN private kubectl access (prod only)"
+  description = "Create AWS Verified Access endpoint in front of the private EKS API (prod only)"
   default     = false
+}
+
+variable "ava_oidc_issuer" {
+  type        = string
+  description = "Keycloak OIDC issuer URL for Verified Access trust provider"
+  default     = ""
+}
+
+variable "ava_oidc_client_id" {
+  type        = string
+  description = "Keycloak OIDC client ID for Verified Access"
+  default     = ""
+}
+
+variable "ava_oidc_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Keycloak OIDC client secret for Verified Access"
+  default     = ""
+}
+
+variable "ava_subnet_ids" {
+  type        = list(string)
+  description = "Public subnet IDs for the Verified Access endpoint ENIs"
+  default     = []
 }

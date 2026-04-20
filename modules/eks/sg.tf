@@ -183,28 +183,3 @@ resource "aws_security_group_rule" "eks_to_opensearch" {
   source_security_group_id = aws_security_group.eks_nodes.id
   security_group_id        = aws_security_group.opensearch_sg.id
 }
-
-# Zero VPN config (prod only)
-resource "aws_security_group" "ssm_endpoints_sg" {
-  count       = var.enable_ssm_access ? 1 : 0
-  name        = "${var.cluster_name}-ssm-endpoints-sg"
-  description = "Allow HTTPS from EKS nodes to SSM/SSMMessages/EC2Messages VPC endpoints"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description     = "HTTPS from EKS nodes"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.eks_nodes.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.cluster_name}-ssm-endpoints-sg" }
-}

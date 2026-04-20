@@ -990,7 +990,7 @@ metrics:
 keycloakConfigCli:
   ## @param keycloakConfigCli.enabled Whether to enable keycloak-config-cli job
   ##
-  enabled: false
+  enabled: true
   ## Bitnami keycloak-config-cli image
   ## ref: https://hub.docker.com/r/bitnami/keycloak-config-cli/tags/
   ## @param keycloakConfigCli.image.registry [default: REGISTRY_NAME] keycloak-config-cli container image registry
@@ -1131,7 +1131,7 @@ keycloakConfigCli:
   extraEnvVarsCM: ""
   ## @param keycloakConfigCli.extraEnvVarsSecret Secret with extra environment variables
   ##
-  extraEnvVarsSecret: ""
+  extraEnvVarsSecret: "keycloak-auth0-secret"
   ## @param keycloakConfigCli.extraVolumes Extra volumes to add to the job
   ##
   extraVolumes: []
@@ -1173,7 +1173,31 @@ keycloakConfigCli:
   ##     realm: realm2
   ##     clients: []
   ##
-  configuration: {}
+  configuration:
+    saas-realm.yaml: |
+      realm: saas
+      enabled: true
+      identityProviders:
+        - alias: auth0
+          providerId: oidc
+          enabled: true
+          trustEmail: true
+          storeToken: false
+          addReadTokenRoleOnCreate: false
+          firstBrokerLoginFlowAlias: first broker login
+          config:
+            clientId: $(env:AUTH0_CLIENT_ID)
+            clientSecret: $(env:AUTH0_CLIENT_SECRET)
+            issuer: $(env:AUTH0_ISSUER)
+            authorizationUrl: $(env:AUTH0_ISSUER)/authorize
+            tokenUrl: $(env:AUTH0_ISSUER)/oauth/token
+            userInfoUrl: $(env:AUTH0_ISSUER)/userinfo
+            jwksUrl: $(env:AUTH0_ISSUER)/.well-known/jwks.json
+            logoutUrl: $(env:AUTH0_ISSUER)/v2/logout
+            validateSignature: "true"
+            useJwksUrl: "true"
+            syncMode: FORCE
+            defaultScope: openid profile email
   ## @param keycloakConfigCli.existingConfigmap ConfigMap with keycloak-config-cli configuration
   ## NOTE: This will override keycloakConfigCli.configuration
   ##

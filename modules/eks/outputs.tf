@@ -50,6 +50,11 @@ output "oidc_issuer" {
   value = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
 
-output "ssm_sg_id" {
-  value = var.enable_ssm_access ? aws_security_group.ssm_endpoints_sg[0].id : null
+output "verified_access_endpoint_dns" {
+  description = "DNS name of the Verified Access endpoint — use this as your kubectl server"
+  value       = var.enable_verified_access ? aws_verifiedaccess_endpoint.eks_api[0].endpoint_domain : null
+}
+
+output "verified_access_endpoint_id" {
+  value = var.enable_verified_access ? aws_verifiedaccess_endpoint.eks_api[0].id : null
 }

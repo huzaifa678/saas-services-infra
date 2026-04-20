@@ -33,10 +33,32 @@ variable "enable_public_access" {
   default = false
 }
 
-variable "enable_ssm_access" {
+variable "enable_verified_access" {
   type        = bool
-  description = "Enable SSM VPC endpoints + IRSA for zero-VPN private EKS access (prod only)"
+  description = "Enable AWS Verified Access Zero Trust proxy for private EKS API (prod only)"
   default     = false
+}
+
+variable "ava_oidc_issuer" {
+  type    = string
+  default = ""
+}
+
+variable "ava_oidc_client_id" {
+  type    = string
+  default = ""
+}
+
+variable "ava_oidc_client_secret" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "ava_subnet_ids" {
+  type        = list(string)
+  description = "Public subnet IDs for AVA endpoint ENIs"
+  default     = []
 }
 
 variable "node_instance_type" {
@@ -124,4 +146,25 @@ variable "observability" {
     condition     = contains(["elk", "grafana"], var.observability)
     error_message = "observability must be 'elk' or 'grafana'."
   }
+}
+
+variable "keycloak_hostname" {
+  type    = string
+  default = "keycloak.internal"
+}
+
+variable "auth0_issuer" {
+  type    = string
+  default = ""
+}
+
+variable "auth0_client_id" {
+  type    = string
+  default = ""
+}
+
+variable "auth0_client_secret" {
+  type      = string
+  sensitive = true
+  default   = ""
 }
