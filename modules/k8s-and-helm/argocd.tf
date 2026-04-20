@@ -16,8 +16,8 @@ resource "helm_release" "argocd" {
 locals {
   # elk = prod/staging, grafana = dev
   clusters_path = var.observability == "elk" ? (
-    var.auth_provider == "keycloak" ? "clusters/prod" : "clusters/staging"
-  ) : "clusters/dev"
+    var.auth_provider == "keycloak" ? "manifests/base/overlays/prod" : "manifests/base/overlays/staging"
+  ) : "manifests/base/overlays/dev"
 }
 
 data "kubectl_file_documents" "saas_manifest" {
