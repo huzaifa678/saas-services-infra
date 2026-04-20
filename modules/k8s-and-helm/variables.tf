@@ -69,3 +69,8 @@ variable "auth0_client_secret" {
   sensitive = true
   default   = ""
 }
+
+variable "observability" {
+  type    = string
+  default = "grafana"
+}

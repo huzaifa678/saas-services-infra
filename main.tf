@@ -76,6 +76,7 @@ module "k8s" {
   auth0_issuer                    = var.auth0_issuer
   auth0_client_id                 = var.auth0_client_id
   auth0_client_secret             = var.auth0_client_secret
+  observability                   = var.observability
 }
 
 module "rds_auth" {
