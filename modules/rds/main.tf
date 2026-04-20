@@ -4,6 +4,22 @@ resource "aws_db_subnet_group" "this" {
   tags       = { Name = "${var.name}-subnet-group" }
 }
 
+resource "aws_secretsmanager_secret" "db" {
+  name                    = "${var.name}-secret"
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret_version" "db" {
+  secret_id = aws_secretsmanager_secret.db.id
+
+  secret_string = jsonencode({
+    username = var.db_username
+    password = var.db_password
+    endpoint = aws_db_instance.this.endpoint
+    db_name  = var.db_name
+  })
+}
+
 resource "random_password" "db_password" {
   length           = 16
   special          = true
