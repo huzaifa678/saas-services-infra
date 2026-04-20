@@ -12,3 +12,16 @@ resource "helm_release" "argocd" {
     kubectl_manifest.gateway_api_crds
   ]
 }
+
+
+data "kubectl_file_documents" "saas_manifest" {
+    content = templatefile("${path.module}/argo-saas.yaml.tpl")
+}
+
+resource "kubectl_manifest" "saas_app" {
+  yaml_body = data.kubectl_file_documents.saas_manifest.content
+  wait      = true
+  depends_on = [
+    helm_release.argocd
+  ]
+}
