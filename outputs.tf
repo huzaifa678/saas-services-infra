@@ -12,7 +12,6 @@ output "auth_db" {
     endpoint = module.rds_auth[0].endpoint
     db_name  = module.rds_auth[0].db_name
     username = module.rds_auth[0].username
-    password = module.rds_auth[0].password
   } : null
 }
 
@@ -22,7 +21,6 @@ output "keycloak_db" {
     endpoint = module.rds_keycloak[0].endpoint
     db_name  = module.rds_keycloak[0].db_name
     username = module.rds_keycloak[0].username
-    password = module.rds_keycloak[0].password
   } : null
 }
 
@@ -32,7 +30,6 @@ output "subscription_db" {
     endpoint = module.rds_subscription.endpoint
     db_name  = module.rds_subscription.db_name
     username = module.rds_subscription.username
-    password = module.rds_subscription.password
   }
 }
 
@@ -42,7 +39,6 @@ output "billing_db" {
     endpoint = module.rds_billing.endpoint
     db_name  = module.rds_billing.db_name
     username = module.rds_billing.username
-    password = module.rds_billing.password
   }
 }
 
@@ -52,7 +48,6 @@ output "usage_db" {
     endpoint = module.rds_usage.endpoint
     db_name  = module.rds_usage.db_name
     username = module.rds_usage.username
-    password = module.rds_usage.password
   }
 }
 

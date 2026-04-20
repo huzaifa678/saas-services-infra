@@ -15,7 +15,8 @@ resource "helm_release" "argocd" {
 
 
 data "kubectl_file_documents" "saas_manifest" {
-    content = templatefile("${path.module}/argo-saas.yaml.tpl")
+    content = templatefile("${path.module}/argo-saas.yaml.tpl", {
+    })
 }
 
 resource "kubectl_manifest" "saas_app" {
