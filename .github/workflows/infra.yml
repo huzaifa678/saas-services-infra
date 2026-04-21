@@ -3,11 +3,6 @@ name: infra
 on:
   workflow_dispatch:
   workflow_run:
-    workflows:
-      - auth-service CI
-      - subscription-service CI
-      - billing-service CI
-    types: [completed]
     branches: [main]
 
 jobs:
