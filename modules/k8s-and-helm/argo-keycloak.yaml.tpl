@@ -16,8 +16,6 @@ spec:
       parameters:
         - name: auth.adminUser
           value: admin
-        - name: ingress.enabled
-          value: "false"
         - name: externalDatabase.host
           value: "${keycloak_db_endpoint}"
         - name: externalDatabase.port
