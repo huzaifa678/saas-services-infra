@@ -141,6 +141,46 @@ resource "aws_iam_role_policy_attachment" "external_dns_route53" {
   policy_arn = aws_iam_policy.route53_policy.arn
 }
 
+resource "aws_iam_role" "external_secrets_irsa" {
+  name = "${var.cluster_name}-external-secrets-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(data.aws_eks_cluster.this.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:external-secrets:external-secrets"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_policy" "external_secrets_policy" {
+  name = "${var.cluster_name}-external-secrets-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:ListSecrets"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "external_secrets_attach" {
+  role       = aws_iam_role.external_secrets_irsa.name
+  policy_arn = aws_iam_policy.external_secrets_policy.arn
+}
+
 # ─── IRSA: aws-load-balancer-controller ──────────────────────────────────────
 resource "aws_iam_role" "aws_lb_controller_irsa" {
   name = "${var.cluster_name}-aws-lb-controller-irsa"

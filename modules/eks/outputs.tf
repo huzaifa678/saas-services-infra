@@ -26,6 +26,10 @@ output "aws_lb_controller_irsa_role_arn" {
   value = aws_iam_role.aws_lb_controller_irsa.arn
 }
 
+output "external_secrets_irsa_role_arn" {
+  value = aws_iam_role.external_secrets_irsa.arn
+}
+
 output "rds_sg_id" {
   value = aws_security_group.rds_sg.id
 }

@@ -70,6 +70,7 @@ module "k8s" {
   cert_manager_irsa_role_arn      = module.eks.cert_manager_irsa_role_arn
   external_dns_irsa_role_arn      = module.eks.external_dns_irsa_role_arn
   aws_lb_controller_irsa_role_arn = module.eks.aws_lb_controller_irsa_role_arn
+  external_secrets_irsa_role_arn  = module.eks.external_secrets_irsa_role_arn
   auth_provider                   = var.auth_provider
   keycloak_db_endpoint            = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""
   keycloak_hostname               = var.keycloak_hostname

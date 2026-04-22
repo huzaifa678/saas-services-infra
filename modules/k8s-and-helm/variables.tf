@@ -36,6 +36,10 @@ variable "external_dns_irsa_role_arn" {
   type = string
 }
 
+variable "external_secrets_irsa_role_arn" {
+  type = string
+}
+
 variable "aws_lb_controller_irsa_role_arn" {
   type = string
 }
