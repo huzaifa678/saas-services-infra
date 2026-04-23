@@ -62,3 +62,19 @@ output "verified_access_endpoint_dns" {
 output "verified_access_endpoint_id" {
   value = var.enable_verified_access ? aws_verifiedaccess_endpoint.eks_api[0].id : null
 }
+
+output "karpenter_irsa_role_arn" {
+  value = aws_iam_role.karpenter_irsa.arn
+}
+
+output "karpenter_node_role_arn" {
+  value = aws_iam_role.karpenter_node_role.arn
+}
+
+output "karpenter_node_instance_profile_name" {
+  value = aws_iam_instance_profile.karpenter_node.name
+}
+
+output "karpenter_interruption_queue_name" {
+  value = aws_sqs_queue.karpenter_interruption.name
+}

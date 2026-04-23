@@ -78,3 +78,11 @@ variable "observability" {
   type    = string
   default = "grafana"
 }
+
+variable "karpenter_irsa_role_arn" {
+  type = string
+}
+
+variable "karpenter_interruption_queue_name" {
+  type = string
+}

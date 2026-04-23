@@ -30,6 +30,7 @@ module "vpc" {
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb"           = "1"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "karpenter.sh/discovery"                    = var.cluster_name
   }
 
   tags = { Name = "${var.cluster_name}-vpc" }
@@ -70,8 +71,10 @@ module "k8s" {
   cert_manager_irsa_role_arn      = module.eks.cert_manager_irsa_role_arn
   external_dns_irsa_role_arn      = module.eks.external_dns_irsa_role_arn
   aws_lb_controller_irsa_role_arn = module.eks.aws_lb_controller_irsa_role_arn
-  external_secrets_irsa_role_arn  = module.eks.external_secrets_irsa_role_arn
-  auth_provider                   = var.auth_provider
+  external_secrets_irsa_role_arn    = module.eks.external_secrets_irsa_role_arn
+  karpenter_irsa_role_arn           = module.eks.karpenter_irsa_role_arn
+  karpenter_interruption_queue_name = module.eks.karpenter_interruption_queue_name
+  auth_provider                     = var.auth_provider
   keycloak_db_endpoint            = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""
   keycloak_hostname               = var.keycloak_hostname
   auth0_issuer                    = var.auth0_issuer

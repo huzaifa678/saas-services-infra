@@ -57,3 +57,13 @@ resource "kubectl_manifest" "keycloak_app" {
   wait       = true
   depends_on = [helm_release.argocd]
 }
+
+resource "kubectl_manifest" "karpenter_app" {
+  yaml_body = templatefile("${path.module}/argo-karpenter.yaml.tpl", {
+    karpenter_irsa_role_arn          = var.karpenter_irsa_role_arn
+    cluster_name                     = var.cluster_name
+    karpenter_interruption_queue_name = var.karpenter_interruption_queue_name
+  })
+  wait       = true
+  depends_on = [helm_release.argocd]
+}

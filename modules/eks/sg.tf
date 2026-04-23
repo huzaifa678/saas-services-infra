@@ -3,6 +3,11 @@ resource "aws_security_group" "eks_nodes" {
   description = "Security group for EKS worker nodes"
   vpc_id      = var.vpc_id
 
+  tags = {
+    "karpenter.sh/discovery" = var.cluster_name,
+    Name = "${var.cluster_name}-nodes-sg"
+  }
+
   egress {
     description = "Allow HTTPS egress to AWS services and internet"
     from_port   = 443
@@ -42,8 +47,6 @@ resource "aws_security_group" "eks_nodes" {
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
   }
-
-  tags = { Name = "${var.cluster_name}-nodes-sg" }
 }
 
 resource "aws_security_group" "rds_sg" {
