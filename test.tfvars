@@ -1,3 +1,4 @@
+# test tfvars incase the shift is towards cloud cluster lvl testing from local cluster testing.
 region       = "us-east-1"
 cluster_name = "saas-eks-dev"
 
