@@ -25,7 +25,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region:     ${{ secrets.AWS_REGION }}
+          aws-region:     us-east-1
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -79,7 +79,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region:     ${{ secrets.AWS_REGION }}
+          aws-region:     us-east-1
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -91,7 +91,7 @@ jobs:
         run: |
           terraform init \
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
-            -backend-config="region=${{ secrets.AWS_REGION }}"
+            -backend-config="region=us-east-1" 
 
       - name: terraform validate
         working-directory: ${{ matrix.service }}
