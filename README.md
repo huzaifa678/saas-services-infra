@@ -8,6 +8,10 @@
 [![License](https://img.shields.io/badge/License-Private-red)](./LICENSE)
 [![Status](https://img.shields.io/badge/Status-In%20Development-yellow)](https://github.com)
 
+## Tags
+
+`in-development` `terraform` `aws-infrastructure` `eks` `saas` `microservices`
+
 Terraform infrastructure for a multi-service SaaS platform on AWS. Provisions a full EKS-based environment with managed databases, messaging, observability, and auth — across `dev`, `staging`, and `prod` environments.
 
 ---
