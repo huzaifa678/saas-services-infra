@@ -15,7 +15,7 @@ resource "helm_release" "argocd" {
 
 data "kubectl_file_documents" "saas_manifest" {
   content = templatefile("${path.module}/argo-saas.yaml.tpl", {
-    clusters_path = local.clusters_path
+    env = local.env
   })
 }
 
