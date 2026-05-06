@@ -1,28 +1,42 @@
-TFVARS     ?= test.tfvars
-SERVICES   := api-gateway auth-service billing-service subscription-service
+ENV      ?= test
+SERVICES := api-gateway auth-service billing-service subscription-service
 
-.PHONY: fmt validate plan apply $(SERVICES:%=init-%) $(SERVICES:%=plan-%) $(SERVICES:%=validate-%)
+ENV_DIR         := environments/$(ENV)
+BACKEND_CONFIG  := $(ENV_DIR)/backend.hcl
+TFVARS          := $(ENV_DIR)/terraform.tfvars
+
+.PHONY: fmt validate init plan apply \
+        $(SERVICES:%=init-%) $(SERVICES:%=plan-%) \
+        $(SERVICES:%=validate-%) $(SERVICES:%=apply-%)
 
 fmt:
 	terraform fmt -recursive
 
-validate:
+validate: init
 	terraform validate
 
-plan:
+init:
+	terraform init -reconfigure -backend-config=$(BACKEND_CONFIG)
+
+plan: init
 	terraform plan -var-file=$(TFVARS)
 
-apply:
+apply: init
 	terraform apply -var-file=$(TFVARS)
 
-init-%:
-	terraform -chdir=$* init
 
-validate-%:
+# Usage: To make init-auth-service ENV=prod
+init-%:
+	terraform -chdir=$* init -reconfigure \
+	  -backend-config=environments/$(ENV)/backend.hcl
+
+validate-%: init-%
 	terraform -chdir=$* validate
 
-plan-%:
-	terraform -chdir=$* plan
+plan-%: init-%
+	terraform -chdir=$* plan \
+	  -var-file=environments/$(ENV)/terraform.tfvars
 
-apply-%:
-	terraform -chdir=$* apply
+apply-%: init-%
+	terraform -chdir=$* apply \
+	  -var-file=environments/$(ENV)/terraform.tfvars

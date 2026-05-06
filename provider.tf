@@ -12,13 +12,9 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket       = "saas-state-bucket-399849"
-    key          = "saas-services/terraform.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true
-    encrypt      = true
-  }
+  # Partial backend —> supplying the rest via:
+  # terraform init -backend-config=environments/<env>/backend.hcl
+  backend "s3" {}
 }
 
 provider "aws" {

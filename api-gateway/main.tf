@@ -2,8 +2,8 @@ data "terraform_remote_state" "common" {
   backend = "s3"
   config = {
     bucket = "saas-state-bucket-399849"
-    key    = "saas-services/terraform.tfstate"
-    region = "us-east-1"
+    key    = var.root_state_key
+    region = var.region
   }
 }
 

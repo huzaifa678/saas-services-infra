@@ -1,3 +1,16 @@
+data "terraform_remote_state" "common" {
+  backend = "s3"
+  config = {
+    bucket = "saas-state-bucket-399849"
+    key    = var.root_state_key
+    region = var.region
+  }
+}
+
+locals {
+  common = data.terraform_remote_state.common.outputs
+}
+
 data "aws_secretsmanager_secret_version" "billing_db" {
   secret_id = local.common.billing_db_secret_arn
 }

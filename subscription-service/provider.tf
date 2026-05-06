@@ -8,11 +8,9 @@ terraform {
     }
   }
 
-  backend "s3" {
-    key          = "saas-services/subscription-service/terraform.tfstate"
-    use_lockfile = true
-    encrypt      = true
-  }
+  # Partial backend — supply the rest via:
+  #   terraform init -backend-config=environments/<env>/backend.hcl
+  backend "s3" {}
 }
 
 provider "aws" {
