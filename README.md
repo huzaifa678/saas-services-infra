@@ -179,6 +179,15 @@ backend "s3" {
 
 ```
 .
+├── api-gateway/             # API Gateway service Terraform workspace
+│   └── environments/        # Per-environment config for api-gateway
+├── auth-service/            # Auth service Terraform workspace
+│   └── environments/        # Per-environment config for auth-service
+├── billing-service/         # Billing service Terraform workspace
+│   └── environments/        # Per-environment config for billing-service
+├── subscription-service/    # Subscription service Terraform workspace
+│   └── environments/        # Per-environment config for subscription-service
+├── environments/            # Root environment configs for the full stack
 ├── main.tf                  # Root module — VPC, EKS, RDS, MSK, Redis, secrets
 ├── variables.tf
 ├── outputs.tf
@@ -192,6 +201,8 @@ backend "s3" {
 ├── dev.tfvars
 ├── stage.tfvars
 ├── prod.tfvars
+├── secrets.dev.env
+├── secrets.prod.env
 ├── modules/
 │   ├── eks/                 # EKS cluster, nodes, IRSA, security groups, Verified Access
 │   ├── k8s-and-helm/        # Helm: NGINX, cert-manager, external-dns, ArgoCD, Keycloak, Airflow
@@ -199,7 +210,7 @@ backend "s3" {
 │   ├── elasticache/         # Redis
 │   ├── kafka/               # MSK
 │   ├── elk/                 # OpenSearch
-│   ├── grafana/             # Managed Grafana + Prometheus
+│   ├── grafana/             # Managed Grafana + Managed Prometheus
 │   └── otel/                # OpenTelemetry Collector
-└── {service}/               # Per-service Terraform workspaces (auth, billing, subscription, api-gateway)
+└── tfplan                   # Local Terraform plan file
 ```
