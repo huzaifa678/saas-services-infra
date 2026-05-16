@@ -1,7 +1,7 @@
-data "aws_caller_identity" "karpenter" {}
-data "aws_region" "karpenter" {}
+data "aws_caller_identity" "this" {}
+data "aws_region" "this" {}
 
-# ── Interruption queue ────────────────────────────────────────────────────────
+# ── Interruption queue ───────────────────────────────────────────────────────────
 
 resource "aws_sqs_queue" "karpenter_interruption" {
   name                      = "${var.cluster_name}-karpenter-interruption"
@@ -23,7 +23,7 @@ resource "aws_sqs_queue_policy" "karpenter_interruption" {
   })
 }
 
-# ── EventBridge rules → interruption queue ───────────────────────────────────
+# ── EventBridge rules → interruption queue ──────────────────────────────────────
 
 resource "aws_cloudwatch_event_rule" "karpenter_spot_interruption" {
   name        = "${var.cluster_name}-karpenter-spot-interruption"
@@ -85,6 +85,8 @@ resource "aws_cloudwatch_event_target" "karpenter_scheduled_change" {
   arn  = aws_sqs_queue.karpenter_interruption.arn
 }
 
+# ── IRSA: karpenter-controller ───────────────────────────────────────────────────
+
 resource "aws_iam_role" "karpenter_irsa" {
   name = "${var.cluster_name}-karpenter-irsa"
 
@@ -93,12 +95,12 @@ resource "aws_iam_role" "karpenter_irsa" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Federated = aws_iam_openid_connect_provider.eks.arn
+        Federated = var.oidc_provider_arn
       }
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${replace(data.aws_eks_cluster.this.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:karpenter"
+          "${replace(var.oidc_issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:karpenter"
         }
       }
     }]
@@ -120,18 +122,18 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
           "ec2:CreateLaunchTemplate",
         ]
         Resource = [
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:instance/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:spot-instances-request/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:security-group/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:subnet/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:launch-template/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:volume/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.karpenter.account_id}:network-interface/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:instance/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:spot-instances-request/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:security-group/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:subnet/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:launch-template/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:volume/*",
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:network-interface/*",
           "arn:aws:ec2:*::image/*",
         ]
         Condition = {
           StringEquals = {
-            "aws:RequestedRegion" = data.aws_region.karpenter.name
+            "aws:RequestedRegion" = data.aws_region.this.name
           }
         }
       },
@@ -206,7 +208,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Action = [
           "eks:DescribeCluster",
         ]
-        Resource = "arn:aws:eks:${data.aws_region.karpenter.name}:${data.aws_caller_identity.karpenter.account_id}:cluster/${var.cluster_name}"
+        Resource = "arn:aws:eks:${data.aws_region.this.name}:${data.aws_caller_identity.this.account_id}:cluster/${var.cluster_name}"
       },
     ]
   })
@@ -216,6 +218,8 @@ resource "aws_iam_role_policy_attachment" "karpenter_attach" {
   role       = aws_iam_role.karpenter_irsa.name
   policy_arn = aws_iam_policy.karpenter_controller_policy.arn
 }
+
+# ── Karpenter node role + instance profile ───────────────────────────────────────
 
 resource "aws_iam_role" "karpenter_node_role" {
   name = "${var.cluster_name}-karpenter-node-role"
@@ -255,10 +259,6 @@ resource "aws_iam_instance_profile" "karpenter_node" {
   role = aws_iam_role.karpenter_node_role.name
 }
 
-# ── EKS access entry for Karpenter nodes ─────────────────────────────────────
+# ── EKS access entry for Karpenter nodes (must live in the EKS module, not in IAM,
+#   because it references aws_eks_cluster.eks_cluster which is owned by the parent)
 
-resource "aws_eks_access_entry" "karpenter_node" {
-  cluster_name  = aws_eks_cluster.eks_cluster.name
-  principal_arn = aws_iam_role.karpenter_node_role.arn
-  type          = "EC2_LINUX"
-}

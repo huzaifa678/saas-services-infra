@@ -91,3 +91,8 @@ variable "ava_subnet_ids" {
   description = "Public subnet IDs for the Verified Access endpoint ENIs"
   default     = []
 }
+
+variable "eks_nodes_sg_id" {
+  type        = string
+  description = "Security group ID for EKS worker nodes (from modules/security-group)"
+}

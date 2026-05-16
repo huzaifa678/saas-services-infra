@@ -36,51 +36,76 @@ module "vpc" {
   tags = { Name = "${var.cluster_name}-vpc" }
 }
 
+module "security_group" {
+  source = "./modules/security-group"
+
+  cluster_name           = var.cluster_name
+  vpc_id                 = module.vpc.vpc_id
+  vpc_cidr               = var.vpc_cidr
+  enable_verified_access = var.enable_verified_access
+  ava_subnet_ids         = var.ava_subnet_ids
+}
+
 module "eks" {
   source = "./modules/eks"
 
-  cluster_name                         = var.cluster_name
-  kubernetes_version                   = var.kubernetes_version
-  private_subnets                      = module.vpc.private_subnets
-  vpc_id                               = module.vpc.vpc_id
-  enable_public_access                 = var.enable_public_access
-  enable_verified_access               = var.enable_verified_access
-  ava_oidc_issuer                      = var.ava_oidc_issuer
-  ava_oidc_client_id                   = var.ava_oidc_client_id
-  ava_oidc_client_secret               = var.ava_oidc_client_secret
-  ava_subnet_ids                       = var.ava_subnet_ids
-  vpc_cidr                             = var.vpc_cidr
-  node_instance_type                   = var.node_instance_type
-  desired_size                         = var.desired_size
-  min_size                             = var.min_size
-  max_size                             = var.max_size
-  region                               = var.region
-  kms_key_arn                          = aws_kms_key.main.arn
+  cluster_name           = var.cluster_name
+  kubernetes_version     = var.kubernetes_version
+  private_subnets        = module.vpc.private_subnets
+  vpc_id                 = module.vpc.vpc_id
+  enable_public_access   = var.enable_public_access
+  enable_verified_access = var.enable_verified_access
+  ava_oidc_issuer        = var.ava_oidc_issuer
+  ava_oidc_client_id     = var.ava_oidc_client_id
+  ava_oidc_client_secret = var.ava_oidc_client_secret
+  ava_subnet_ids         = var.ava_subnet_ids
+  vpc_cidr               = var.vpc_cidr
+  node_instance_type     = var.node_instance_type
+  desired_size           = var.desired_size
+  min_size               = var.min_size
+  max_size               = var.max_size
+  region                 = var.region
+  kms_key_arn            = aws_kms_key.main.arn
+  eks_nodes_sg_id        = module.security_group.eks_nodes_security_group_id
+}
+
+module "iam" {
+  source = "./modules/iam"
+
+  cluster_name      = var.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer       = module.eks.oidc_issuer
+}
+
+resource "aws_eks_access_entry" "karpenter_node" {
+  cluster_name  = module.eks.eks_cluster_name
+  principal_arn = module.iam.karpenter_node_role_arn
+  type          = "EC2_LINUX"
 }
 
 module "k8s" {
   source = "./modules/k8s-and-helm"
 
-  cluster_name                    = module.eks.eks_cluster_name
-  cluster_endpoint                = module.eks.eks_cluster_endpoint
-  cluster_ca                      = module.eks.eks_cluster_ca
-  eks_node_group                  = module.eks.eks_node_group
-  vpc                             = module.vpc
-  vpc_id                          = module.vpc.vpc_id
-  region                          = var.region
-  cert_manager_irsa_role_arn      = module.eks.cert_manager_irsa_role_arn
-  external_dns_irsa_role_arn      = module.eks.external_dns_irsa_role_arn
-  aws_lb_controller_irsa_role_arn = module.eks.aws_lb_controller_irsa_role_arn
-  external_secrets_irsa_role_arn    = module.eks.external_secrets_irsa_role_arn
-  karpenter_irsa_role_arn           = module.eks.karpenter_irsa_role_arn
-  karpenter_interruption_queue_name = module.eks.karpenter_interruption_queue_name
+  cluster_name                      = module.eks.eks_cluster_name
+  cluster_endpoint                  = module.eks.eks_cluster_endpoint
+  cluster_ca                        = module.eks.eks_cluster_ca
+  eks_node_group                    = module.eks.eks_node_group
+  vpc                               = module.vpc
+  vpc_id                            = module.vpc.vpc_id
+  region                            = var.region
+  cert_manager_irsa_role_arn        = module.iam.cert_manager_irsa_role_arn
+  external_dns_irsa_role_arn        = module.iam.external_dns_irsa_role_arn
+  aws_lb_controller_irsa_role_arn   = module.iam.aws_lb_controller_irsa_role_arn
+  external_secrets_irsa_role_arn    = module.iam.external_secrets_irsa_role_arn
+  karpenter_irsa_role_arn           = module.iam.karpenter_irsa_role_arn
+  karpenter_interruption_queue_name = module.iam.karpenter_interruption_queue_name
   auth_provider                     = var.auth_provider
-  keycloak_db_endpoint            = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""
-  keycloak_hostname               = var.keycloak_hostname
-  auth0_issuer                    = var.auth0_issuer
-  auth0_client_id                 = var.auth0_client_id
-  auth0_client_secret             = var.auth0_client_secret
-  observability                   = var.observability
+  keycloak_db_endpoint              = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""
+  keycloak_hostname                 = var.keycloak_hostname
+  auth0_issuer                      = var.auth0_issuer
+  auth0_client_id                   = var.auth0_client_id
+  auth0_client_secret               = var.auth0_client_secret
+  observability                     = var.observability
 }
 
 module "rds_auth" {
@@ -91,7 +116,7 @@ module "rds_auth" {
   db_username = "auth_user"
   db_password = var.auth_db_password
   subnet_ids  = module.vpc.private_subnets
-  rds_sg_id   = module.eks.rds_sg_id
+  rds_sg_id   = module.security_group.rds_sg_id
   port        = "5432"
   kms_key_arn = aws_kms_key.main.arn
 }
@@ -103,7 +128,7 @@ module "rds_subscription" {
   db_username = "subscription_user"
   db_password = var.subscription_db_password
   subnet_ids  = module.vpc.private_subnets
-  rds_sg_id   = module.eks.rds_sg_id
+  rds_sg_id   = module.security_group.rds_sg_id
   port        = "5432"
   kms_key_arn = aws_kms_key.main.arn
 }
@@ -115,7 +140,7 @@ module "rds_billing" {
   db_username = "billing_user"
   db_password = var.billing_db_password
   subnet_ids  = module.vpc.private_subnets
-  rds_sg_id   = module.eks.rds_sg_id
+  rds_sg_id   = module.security_group.rds_sg_id
   port        = "5432"
   kms_key_arn = aws_kms_key.main.arn
 }
@@ -127,7 +152,7 @@ module "rds_usage" {
   db_username = "usage_user"
   db_password = var.usage_db_password
   subnet_ids  = module.vpc.private_subnets
-  rds_sg_id   = module.eks.rds_sg_id
+  rds_sg_id   = module.security_group.rds_sg_id
   port        = "5432"
   kms_key_arn = aws_kms_key.main.arn
 }
@@ -140,7 +165,7 @@ module "rds_keycloak" {
   db_username = "keycloak_user"
   db_password = var.keycloak_db_password
   subnet_ids  = module.vpc.private_subnets
-  rds_sg_id   = module.eks.rds_sg_id
+  rds_sg_id   = module.security_group.rds_sg_id
   port        = "5432"
   kms_key_arn = aws_kms_key.main.arn
 }
@@ -149,48 +174,31 @@ module "elasticache" {
   source      = "./modules/elasticache"
   name        = "saas-redis"
   subnet_ids  = module.vpc.private_subnets
-  redis_sg_id = module.eks.redis_sg_id
+  redis_sg_id = module.security_group.redis_sg_id
   kms_key_arn = aws_kms_key.main.arn
 }
 
-module "kafka" {
-  source                 = "./modules/kafka"
+module "msk" {
+  source                 = "./modules/msk"
   cluster_name           = "saas-msk"
   subnet_ids             = slice(module.vpc.private_subnets, 0, 2)
-  msk_sg_id              = module.eks.msk_sg_id
+  msk_sg_id              = module.security_group.msk_sg_id
   number_of_broker_nodes = 2
   kms_key_arn            = aws_kms_key.main.arn
 }
 
-module "grafana" {
-  count = local.observability_map.grafana ? 1 : 0
-  source            = "./modules/grafana"
-  workspace_name    = "saas-grafana"
+module "observability" {
+  source = "./modules/observability"
+
+  stack             = var.observability
+  cluster_name      = module.eks.eks_cluster_name
+  region            = var.region
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer       = module.eks.oidc_issuer
-}
 
-module "elk" {
-  count = local.observability_map.elk ? 1 : 0
-  source               = "./modules/elk"
-  domain_name          = "saas-opensearch"
-  subnet_ids           = module.vpc.private_subnets
-  opensearch_sg_id     = module.eks.opensearch_sg_id
-  master_user_name     = var.opensearch_master_username
-  master_user_password = var.opensearch_master_password
-  oidc_provider_arn    = module.eks.oidc_provider_arn
-  oidc_issuer          = module.eks.oidc_issuer
-}
-
-module "otel" {
-  source = "./modules/otel"
-
-  cluster_name                 = module.eks.eks_cluster_name
-  otel_collector_irsa_role_arn = try(module.elk[0].otel_collector_irsa_role_arn, try(module.grafana[0].otel_collector_irsa_role_arn, null))
-  prometheus_endpoint          = local.prometheus_endpoint
-  opensearch_endpoint          = try(module.elk[0].opensearch_endpoint, null)
-  opensearch_username          = var.opensearch_master_username
-  opensearch_password          = var.opensearch_master_password
-  region                       = var.region
-  observability                = var.observability
+  # ELK-specific (ignored when stack = "grafana")
+  subnet_ids                 = module.vpc.private_subnets
+  opensearch_sg_id           = module.security_group.opensearch_sg_id
+  opensearch_master_username = var.opensearch_master_username
+  opensearch_master_password = var.opensearch_master_password
 }

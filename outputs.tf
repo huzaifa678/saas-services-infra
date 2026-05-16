@@ -55,8 +55,8 @@ output "redis_endpoint" {
   value = module.elasticache.primary_endpoint
 }
 
-output "kafka_bootstrap_brokers" {
-  value = module.kafka.bootstrap_brokers
+output "msk_bootstrap_brokers" {
+  value = module.msk.bootstrap_brokers
 }
 
 output "schema_registry_arn" {
@@ -64,19 +64,19 @@ output "schema_registry_arn" {
 }
 
 output "grafana_endpoint" {
-  value = try(module.grafana[0].grafana_workspace_endpoint, null)
+  value = module.observability.grafana_endpoint
 }
 
 output "prometheus_endpoint" {
-  value = try(module.grafana[0].prometheus_workspace_endpoint, null)
+  value = module.observability.prometheus_endpoint
 }
 
 output "opensearch_endpoint" {
-  value = try(module.elk[0].opensearch_endpoint, null)
+  value = module.observability.opensearch_endpoint
 }
 
 output "opensearch_dashboard_endpoint" {
-  value = try(module.elk[0].opensearch_dashboard_endpoint, null)
+  value = module.observability.opensearch_dashboard_endpoint
 }
 
 # ─── ECR ─────────────────────────────────────────────────────────────────────

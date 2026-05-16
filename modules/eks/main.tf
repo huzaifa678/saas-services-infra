@@ -3,7 +3,6 @@ resource "aws_eks_cluster" "eks_cluster" {
   role_arn = aws_iam_role.eks_cluster_role.arn
   version  = var.kubernetes_version
 
-
   vpc_config {
     subnet_ids              = var.private_subnets
     endpoint_private_access = true
@@ -42,7 +41,7 @@ resource "aws_launch_template" "eks_nodes" {
   instance_type = var.node_instance_type
 
   vpc_security_group_ids = [
-    aws_security_group.eks_nodes.id,
+    var.eks_nodes_sg_id,
     aws_eks_cluster.eks_cluster.vpc_config[0].cluster_security_group_id
   ]
 
@@ -87,8 +86,6 @@ resource "aws_eks_node_group" "eks_node_group" {
     id      = aws_launch_template.eks_nodes.id
     version = aws_launch_template.eks_nodes.latest_version
   }
-
-  depends_on = [aws_security_group_rule.allow_node_to_control_plane]
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {

@@ -14,38 +14,6 @@ output "eks_node_group" {
   value = aws_eks_node_group.eks_node_group
 }
 
-output "cert_manager_irsa_role_arn" {
-  value = aws_iam_role.cert_manager_irsa.arn
-}
-
-output "external_dns_irsa_role_arn" {
-  value = aws_iam_role.external_dns_irsa.arn
-}
-
-output "aws_lb_controller_irsa_role_arn" {
-  value = aws_iam_role.aws_lb_controller_irsa.arn
-}
-
-output "external_secrets_irsa_role_arn" {
-  value = aws_iam_role.external_secrets_irsa.arn
-}
-
-output "rds_sg_id" {
-  value = aws_security_group.rds_sg.id
-}
-
-output "redis_sg_id" {
-  value = aws_security_group.redis_sg.id
-}
-
-output "msk_sg_id" {
-  value = aws_security_group.msk_sg.id
-}
-
-output "opensearch_sg_id" {
-  value = aws_security_group.opensearch_sg.id
-}
-
 output "oidc_provider_arn" {
   value = aws_iam_openid_connect_provider.eks.arn
 }
@@ -61,20 +29,4 @@ output "verified_access_endpoint_dns" {
 
 output "verified_access_endpoint_id" {
   value = var.enable_verified_access ? aws_verifiedaccess_endpoint.eks_api[0].id : null
-}
-
-output "karpenter_irsa_role_arn" {
-  value = aws_iam_role.karpenter_irsa.arn
-}
-
-output "karpenter_node_role_arn" {
-  value = aws_iam_role.karpenter_node_role.arn
-}
-
-output "karpenter_node_instance_profile_name" {
-  value = aws_iam_instance_profile.karpenter_node.name
-}
-
-output "karpenter_interruption_queue_name" {
-  value = aws_sqs_queue.karpenter_interruption.name
 }
