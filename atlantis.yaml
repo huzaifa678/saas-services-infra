@@ -1,0 +1,141 @@
+version: 3
+
+automerge: false
+parallel_plan: true
+parallel_apply: false
+
+projects:
+  - name: root-dev
+    dir: .
+    workspace: dev
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "modules/**/*.tf", "environments/dev/*.tfvars", "environments/dev/*.hcl"]
+
+  - name: root-test
+    dir: .
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "modules/**/*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+
+  - name: root-prod
+    dir: .
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "modules/**/*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+
+  - name: api-gateway-test
+    dir: api-gateway
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+
+  - name: api-gateway-stage
+    dir: api-gateway
+    workspace: stage
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
+
+  - name: api-gateway-prod
+    dir: api-gateway
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+
+  - name: auth-service-test
+    dir: auth-service
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+
+  - name: auth-service-stage
+    dir: auth-service
+    workspace: stage
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
+
+  - name: auth-service-prod
+    dir: auth-service
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+
+  - name: billing-service-test
+    dir: billing-service
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+
+  - name: billing-service-stage
+    dir: billing-service
+    workspace: stage
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
+
+  - name: billing-service-prod
+    dir: billing-service
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+
+  - name: subscription-service-test
+    dir: subscription-service
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+
+  - name: subscription-service-stage
+    dir: subscription-service
+    workspace: stage
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
+
+  - name: subscription-service-prod
+    dir: subscription-service
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: env-deploy
+    autoplan:
+      enabled: true
+      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
