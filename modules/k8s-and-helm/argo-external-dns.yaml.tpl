@@ -38,8 +38,6 @@ spec:
           value: CNAME
         - name: managedRecordTypes[1]
           value: A
-        - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
-          value: "${external_dns_irsa_role_arn}"
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns

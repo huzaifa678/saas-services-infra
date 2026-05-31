@@ -41,5 +41,5 @@ variable "region" {
 }
 
 variable "observability" {
-  type  = string
+  type = string
 }

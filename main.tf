@@ -16,11 +16,11 @@ module "vpc" {
   enable_dns_support   = true
 
   # VPC Flow Logs
-  enable_flow_log                      = true
-  flow_log_destination_type            = "cloud-watch-logs"
-  flow_log_destination_arn             = aws_cloudwatch_log_group.vpc_flow_logs.arn
-  flow_log_cloudwatch_iam_role_arn     = aws_iam_role.vpc_flow_log.arn
-  flow_log_traffic_type                = "ALL"
+  enable_flow_log                  = true
+  flow_log_destination_type        = "cloud-watch-logs"
+  flow_log_destination_arn         = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  flow_log_cloudwatch_iam_role_arn = aws_iam_role.vpc_flow_log.arn
+  flow_log_traffic_type            = "ALL"
 
   public_subnet_tags = {
     "kubernetes.io/role/elb"                    = "1"
@@ -67,14 +67,13 @@ module "eks" {
   region                 = var.region
   kms_key_arn            = aws_kms_key.main.arn
   eks_nodes_sg_id        = module.security_group.eks_nodes_security_group_id
+  ebs_csi_role_arn       = module.iam.ebs_csi_role_arn
 }
 
 module "iam" {
   source = "./modules/iam"
 
-  cluster_name      = var.cluster_name
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_issuer       = module.eks.oidc_issuer
+  cluster_name = var.cluster_name
 }
 
 resource "aws_eks_access_entry" "karpenter_node" {
@@ -93,11 +92,6 @@ module "k8s" {
   vpc                               = module.vpc
   vpc_id                            = module.vpc.vpc_id
   region                            = var.region
-  cert_manager_irsa_role_arn        = module.iam.cert_manager_irsa_role_arn
-  external_dns_irsa_role_arn        = module.iam.external_dns_irsa_role_arn
-  aws_lb_controller_irsa_role_arn   = module.iam.aws_lb_controller_irsa_role_arn
-  external_secrets_irsa_role_arn    = module.iam.external_secrets_irsa_role_arn
-  karpenter_irsa_role_arn           = module.iam.karpenter_irsa_role_arn
   karpenter_interruption_queue_name = module.iam.karpenter_interruption_queue_name
   auth_provider                     = var.auth_provider
   keycloak_db_endpoint              = var.auth_provider == "keycloak" ? module.rds_keycloak[0].endpoint : ""

@@ -1,7 +1,7 @@
 resource "aws_prometheus_workspace" "this" {
   alias = "${var.domain_name}-elk-prometheus"
-  tags  = {
-    Name = "${var.domain_name}-elk-prometheus"
+  tags = {
+    Name  = "${var.domain_name}-elk-prometheus"
     Stack = "elk"
   }
 }

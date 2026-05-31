@@ -29,7 +29,7 @@ variable "enable_public_access" {
 }
 
 variable "enable_verified_access" {
-  type = bool
+  type    = bool
   default = false
 }
 

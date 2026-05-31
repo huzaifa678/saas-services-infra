@@ -9,16 +9,16 @@ terraform {
 
 # ── ADOT EKS Add-on ──────────────────────────────────────────────────────────
 resource "aws_eks_addon" "adot" {
-  cluster_name             = var.cluster_name
-  addon_name               = "adot"
-  addon_version            = "v0.102.1-eksbuild.1"
-  service_account_role_arn = var.otel_collector_irsa_role_arn
+  cluster_name                = var.cluster_name
+  addon_name                  = "adot"
+  addon_version               = "v0.102.1-eksbuild.1"
+  service_account_role_arn    = var.otel_collector_irsa_role_arn
   resolve_conflicts_on_create = "OVERWRITE"
 }
 
 resource "kubectl_manifest" "otel_collector_grafana" {
   count = var.observability == "grafana" ? 1 : 0
-  
+
   depends_on = [aws_eks_addon.adot]
 
   yaml_body = yamlencode({
@@ -175,8 +175,8 @@ resource "kubectl_manifest" "otel_collector_elk" {
           }
 
           opensearch = {
-            endpoint = "https://${var.opensearch_endpoint}"
-            auth     = { authenticator = "sigv4_os" }
+            endpoint     = "https://${var.opensearch_endpoint}"
+            auth         = { authenticator = "sigv4_os" }
             logs_index   = "otel-logs-%%{+yyyy.MM.dd}"
             traces_index = "otel-traces-%%{+yyyy.MM.dd}"
           }

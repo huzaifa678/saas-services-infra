@@ -88,23 +88,8 @@ resource "aws_cloudwatch_event_target" "karpenter_scheduled_change" {
 # ── IRSA: karpenter-controller ───────────────────────────────────────────────────
 
 resource "aws_iam_role" "karpenter_irsa" {
-  name = "${var.cluster_name}-karpenter-irsa"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Federated = var.oidc_provider_arn
-      }
-      Action = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "${replace(var.oidc_issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:karpenter"
-        }
-      }
-    }]
-  })
+  name               = "${var.cluster_name}-karpenter-irsa"
+  assume_role_policy = local.pod_identity_assume_role
 }
 
 resource "aws_iam_policy" "karpenter_controller_policy" {

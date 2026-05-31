@@ -24,6 +24,12 @@ plan: init
 apply: init
 	terraform apply -var-file=$(TFVARS)
 
+argo-sync:
+	argocd app sync pod-identity-refresh --prune
+
+argo-wait:
+	argocd app wait pod-identity-refresh --health
+
 
 # Usage: To make init-auth-service ENV=prod
 init-%:

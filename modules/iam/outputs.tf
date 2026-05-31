@@ -38,6 +38,11 @@ output "karpenter_interruption_queue_name" {
   value       = aws_sqs_queue.karpenter_interruption.name
 }
 
+output "ebs_csi_role_arn" {
+  description = "ARN of the EBS CSI driver Pod Identity role"
+  value       = aws_iam_role.ebs_csi.arn
+}
+
 output "karpenter_interruption_queue_arn" {
   description = "ARN of the SQS queue used by Karpenter interruption handlers"
   value       = aws_sqs_queue.karpenter_interruption.arn

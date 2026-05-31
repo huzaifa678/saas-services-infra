@@ -26,25 +26,19 @@ resource "kubectl_manifest" "saas_app" {
 }
 
 resource "kubectl_manifest" "cert_manager_app" {
-  yaml_body = templatefile("${path.module}/argo-cert-manager.yaml.tpl", {
-    cert_manager_irsa_role_arn = var.cert_manager_irsa_role_arn
-  })
+  yaml_body  = file("${path.module}/argo-cert-manager.yaml.tpl")
   wait       = true
   depends_on = [helm_release.argocd]
 }
 
 resource "kubectl_manifest" "external_dns_app" {
-  yaml_body = templatefile("${path.module}/argo-external-dns.yaml.tpl", {
-    external_dns_irsa_role_arn = var.external_dns_irsa_role_arn
-  })
+  yaml_body  = file("${path.module}/argo-external-dns.yaml.tpl")
   wait       = true
   depends_on = [helm_release.argocd]
 }
 
 resource "kubectl_manifest" "external_secrets_app" {
-  yaml_body = templatefile("${path.module}/argo-external-secrets.yaml.tpl", {
-    external_secrets_irsa_role_arn = var.external_secrets_irsa_role_arn
-  })
+  yaml_body  = file("${path.module}/argo-external-secrets.yaml.tpl")
   wait       = true
   depends_on = [helm_release.argocd]
 }
@@ -60,8 +54,7 @@ resource "kubectl_manifest" "keycloak_app" {
 
 resource "kubectl_manifest" "karpenter_app" {
   yaml_body = templatefile("${path.module}/argo-karpenter.yaml.tpl", {
-    karpenter_irsa_role_arn          = var.karpenter_irsa_role_arn
-    cluster_name                     = var.cluster_name
+    cluster_name                      = var.cluster_name
     karpenter_interruption_queue_name = var.karpenter_interruption_queue_name
   })
   wait       = true

@@ -5,7 +5,7 @@ variable "cluster_name" {
 
 variable "kafka_version" {
   type    = string
-  default = "3.7.x.kraft" 
+  default = "3.7.x.kraft"
 }
 
 variable "number_of_broker_nodes" {

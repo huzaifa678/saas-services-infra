@@ -28,7 +28,7 @@ resource "aws_secretsmanager_secret_version" "subscription_service" {
     POSTGRES_USER       = local.db.username
     POSTGRES_PASSWORD   = local.db.password
     POSTGRES_DB         = local.db.db_name
-    KAFKA_BROKER          = local.common.kafka_bootstrap_brokers
-    SCHEMA_REGISTRY_ARN   = local.common.schema_registry_arn
+    KAFKA_BROKER        = local.common.kafka_bootstrap_brokers
+    SCHEMA_REGISTRY_ARN = local.common.schema_registry_arn
   })
 }

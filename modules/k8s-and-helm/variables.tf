@@ -28,22 +28,6 @@ variable "region" {
   type = string
 }
 
-variable "cert_manager_irsa_role_arn" {
-  type = string
-}
-
-variable "external_dns_irsa_role_arn" {
-  type = string
-}
-
-variable "external_secrets_irsa_role_arn" {
-  type = string
-}
-
-variable "aws_lb_controller_irsa_role_arn" {
-  type = string
-}
-
 variable "auth_provider" {
   type = string
 }
@@ -77,10 +61,6 @@ variable "auth0_client_secret" {
 variable "observability" {
   type    = string
   default = "grafana"
-}
-
-variable "karpenter_irsa_role_arn" {
-  type = string
 }
 
 variable "karpenter_interruption_queue_name" {

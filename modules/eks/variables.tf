@@ -96,3 +96,8 @@ variable "eks_nodes_sg_id" {
   type        = string
   description = "Security group ID for EKS worker nodes (from modules/security-group)"
 }
+
+variable "ebs_csi_role_arn" {
+  type        = string
+  description = "IAM role ARN for the aws-ebs-csi-driver addon (Pod Identity)"
+}

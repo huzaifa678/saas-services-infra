@@ -14,8 +14,6 @@ spec:
     helm:
       releaseName: karpenter
       parameters:
-        - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
-          value: "${karpenter_irsa_role_arn}"
         - name: settings.clusterName
           value: "${cluster_name}"
         - name: settings.interruptionQueue

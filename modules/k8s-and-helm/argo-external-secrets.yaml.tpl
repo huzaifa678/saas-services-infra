@@ -20,8 +20,6 @@ spec:
           value: "true"
         - name: serviceAccount.name
           value: external-secrets
-        - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
-          value: "${external_secrets_irsa_role_arn}"
   destination:
     server: https://kubernetes.default.svc
     namespace: external-secrets

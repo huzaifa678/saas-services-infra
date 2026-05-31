@@ -24,8 +24,6 @@ spec:
           value: "true"
         - name: startupapicheck.enabled
           value: "false"
-        - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
-          value: "${cert_manager_irsa_role_arn}"
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager

@@ -30,9 +30,9 @@ resource "aws_verifiedaccess_instance" "this" {
 }
 
 resource "aws_verifiedaccess_instance_trust_provider_attachment" "this" {
-  count                               = var.enable_verified_access ? 1 : 0
-  verifiedaccess_instance_id          = aws_verifiedaccess_instance.this[0].id
-  verifiedaccess_trust_provider_id    = aws_verifiedaccess_trust_provider.auth0[0].id
+  count                            = var.enable_verified_access ? 1 : 0
+  verifiedaccess_instance_id       = aws_verifiedaccess_instance.this[0].id
+  verifiedaccess_trust_provider_id = aws_verifiedaccess_trust_provider.auth0[0].id
 }
 
 resource "aws_verifiedaccess_group" "eks" {
@@ -67,11 +67,11 @@ resource "aws_security_group" "ava_endpoint_sg" {
   }
 
   egress {
-    description     = "Forward to EKS API"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    cidr_blocks     = [var.vpc_cidr]
+    description = "Forward to EKS API"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = { Name = "${var.cluster_name}-ava-endpoint-sg" }

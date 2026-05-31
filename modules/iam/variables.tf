@@ -3,12 +3,3 @@ variable "cluster_name" {
   description = "EKS cluster name, used as a prefix for all IAM role names"
 }
 
-variable "oidc_issuer" {
-  type        = string
-  description = "OIDC issuer URL of the EKS cluster (for IRSA roles)"
-}
-
-variable "oidc_provider_arn" {
-  type        = string
-  description = "ARN of the EKS OIDC provider (for IRSA roles)"
-}
