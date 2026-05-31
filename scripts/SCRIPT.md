@@ -68,6 +68,23 @@ The script is parameterised — pass any directory name that exists under
 Each must contain both `backend.hcl` and `terraform.tfvars`. If either is
 missing the env is skipped with a clear error and the script exits non-zero.
 
+The **default** is `dev` only — it's the only env with a checked-in
+`secrets.dev.env`. To run others, pass them explicitly and make sure the
+matching `secrets.<env>.env` exists at the repo root.
+
+## Sensitive variables
+
+Variables marked `sensitive = true` in the root (DB passwords, OpenSearch
+master password, OpenAI key, etc.) are **not** stored in `terraform.tfvars`.
+They live in `secrets.<env>.env` at the repo root, as `export TF_VAR_…=…`
+lines. The script auto-sources the matching file before running `plan` /
+`apply`. The exports stay scoped to the script's subshell — they do not leak
+into your interactive shell.
+
+If `secrets.<env>.env` is missing the script prints a warning and continues;
+the plan step will then fail with `No value for required variable` for any
+sensitive var the env needs.
+
 ---
 
 ## Exit codes

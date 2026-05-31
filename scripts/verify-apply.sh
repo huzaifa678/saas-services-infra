@@ -24,7 +24,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ENVS=("$@")
-[[ ${#ENVS[@]} -eq 0 ]] && ENVS=(dev test)
+# Default to dev only — it's the one env with a checked-in secrets.<env>.env.
+# Pass envs explicitly to test others, e.g. `verify-apply.sh dev test`.
+[[ ${#ENVS[@]} -eq 0 ]] && ENVS=(dev)
 
 APPLY_IAM="${APPLY_IAM:-1}"
 
@@ -48,11 +50,23 @@ for env in "${ENVS[@]}"; do
   env_dir="environments/$env"
   backend="$env_dir/backend.hcl"
   tfvars="$env_dir/terraform.tfvars"
+  secrets="secrets.${env}.env"
 
   if [[ ! -f "$backend" ]] || [[ ! -f "$tfvars" ]]; then
     red "  missing $backend or $tfvars — skipping"
     fail=1
     continue
+  fi
+
+  # Sensitive vars (DB passwords, API keys, etc.) live in secrets.<env>.env
+  # as `export TF_VAR_xxx=...` lines. Source them into this subshell only.
+  if [[ -f "$secrets" ]]; then
+    bold "[0/6] sourcing $secrets"
+    # shellcheck disable=SC1090
+    set -a; source "$secrets"; set +a
+    green "      ok"
+  else
+    yellow "      no $secrets found — plan will fail if env has required sensitive vars"
   fi
 
   plan_file=".tfplan.${env}"
@@ -72,17 +86,18 @@ for env in "${ENVS[@]}"; do
   green "      ok"
 
   # ── 3. plan ────────────────────────────────────────────────────────────────
+  # -detailed-exitcode: 0 = no diff, 1 = real error, 2 = diff present (success).
+  # Disable `set -e` around the call so we can read the real exit code.
   bold "[3/6] terraform plan -> $plan_file"
-  if ! terraform plan -input=false -var-file="$tfvars" -out="$plan_file" -detailed-exitcode; then
-    rc=$?
-    # exit code 2 means "diff present" which is fine; 1 is real error
-    if [[ $rc -ne 2 ]]; then
-      red "      plan failed for $env"
-      fail=1
-      continue
-    fi
-  fi
-  green "      ok"
+  set +e
+  terraform plan -input=false -var-file="$tfvars" -out="$plan_file" -detailed-exitcode
+  rc=$?
+  set -e
+  case $rc in
+    0) green "      ok (no changes)" ;;
+    2) green "      ok (diff present)" ;;
+    *) red "      plan failed for $env (exit $rc)"; fail=1; continue ;;
+  esac
 
   # ── 4. inspect plan for risky actions ──────────────────────────────────────
   bold "[4/6] inspecting plan for delete / replace actions"
