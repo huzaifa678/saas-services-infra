@@ -29,7 +29,7 @@ jobs:
       ecr_billing:      ${{ steps.outputs.outputs.ecr_billing }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -93,7 +93,7 @@ jobs:
         service: [api-gateway, auth-service, billing-service, subscription-service]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
