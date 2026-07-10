@@ -145,6 +145,30 @@ The following ECR repositories are provisioned with KMS encryption and immutable
 
 ---
 
+## Policy as Code
+
+Terraform passes through **three guardrail layers** before it reaches AWS — in CI
+on every PR ([`.github/workflows/infra-validate.yml`](.github/workflows/infra-validate.yml))
+and again as the enforced Atlantis apply gate. See [`policy/README.md`](policy/README.md).
+
+| Layer | Tool | Catches |
+|---|---|---|
+| Lint | `tflint` (+ AWS ruleset) | Provider misuse, deprecated syntax, bad instance types, naming |
+| Security scan | `checkov` | ~1k CIS/AWS benchmarks over HCL + plan |
+| Strict PAC | OPA/Rego via `conftest` | Org rules on the *plan*: encryption, public exposure, admin-port CIDRs, IAM `*:*`, tagging |
+
+```bash
+make guardrails    # lint + checkov + policy-test (hermetic, no cloud creds)
+make policy        # plan -> show -json -> conftest test (needs AWS creds)
+```
+
+**Atlantis** runs the same Rego set natively: with `--enable-policy-checks`, a
+`policy_check` stage evaluates every plan and blocks apply on a `deny` until a
+policy owner runs `atlantis approve_policies`. Config is version-controlled at
+[`atlantis/repos.yaml`](atlantis/repos.yaml) — see [`ATLANTIS.md`](ATLANTIS.md#policy-checks-guardrails).
+
+---
+
 ## State Backend
 
 Remote state is stored in S3 with native locking:

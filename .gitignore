@@ -5,11 +5,15 @@ tfplan
 *.tfstate
 *.tfstate.backup
 
-# Env-specific tfvars are committed (they contain no secrets)
-# Secrets are passed via TF_VAR_* env vars in CI
-
 # Local secret files
 secrets.*.env
 
 # OS
 .DS_Store
+migration/.work/
+migration/backup-*.tfstate
+.terragrunt-cache/
+live/**/plan.json
+live/**/tfplan.bin
+provider_generated.tf
+backend.tf

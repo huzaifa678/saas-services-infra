@@ -106,37 +106,52 @@ locks/plan files per environment within the same directory.
 
 ## Server-side config (`repos.yaml`)
 
-Apply this on the Atlantis server (`--repo-config=/etc/atlantis/repos.yaml`).
-**Replace the `id` regex** with your actual repo path.
+The server config is version-controlled at [`atlantis/repos.yaml`](atlantis/repos.yaml)
+— apply it on the Atlantis server with `--repo-config=/etc/atlantis/repos.yaml`.
+**Replace the `id` regex** with your actual repo path. It defines:
 
-```yaml
-repos:
-  - id: github.com/huzaifa678/saas-services-infra
-    apply_requirements: [approved, mergeable]
-    allowed_overrides: [workflow]      # lets atlantis.yaml pick `workflow: env-deploy`
-    allow_custom_workflows: false      # repo cannot define its own shell steps
+- the repo allow-rules (`apply_requirements: [approved, mergeable]`,
+  `allow_custom_workflows: false` — the repo can pick a workflow name but cannot
+  inject shell),
+- the `env-deploy` workflow (`init → fmt → validate → plan → policy_check → apply`),
+- and the **policy checks** (`policies:` block) described below.
 
-workflows:
-  env-deploy:
-    plan:
-      steps:
-        - env:
-            name: TF_WORKSPACE
-            value: default
-        - run: terraform init -reconfigure -backend-config=environments/$WORKSPACE/backend.hcl
-        - run: terraform fmt -check -recursive
-        - run: terraform validate
-        - run: terraform plan -input=false -lock-timeout=300s -var-file=environments/$WORKSPACE/terraform.tfvars -out=$PLANFILE
-    apply:
-      steps:
-        - env:
-            name: TF_WORKSPACE
-            value: default
-        - run: terraform apply -input=false -lock-timeout=300s $PLANFILE
+`$WORKSPACE`, `$PLANFILE`, and `$SHOWFILE` are injected by Atlantis. Paths are
+relative to each project `dir`, so the same workflow serves the root module and
+every service.
+
+---
+
+## Policy checks (guardrails)
+
+Atlantis runs [Policy as Code](policy/README.md) natively. With
+`--enable-policy-checks`, a **`policy_check` stage runs after every plan**: it
+renders the plan to JSON (`show` → `$SHOWFILE`) and evaluates it with
+[`conftest`](https://www.conftest.dev/) against the Rego set in
+[`policy/terraform/`](policy/terraform/). This is the enforced twin of the
+shift-left CI scan ([`.github/workflows/infra-validate.yml`](.github/workflows/infra-validate.yml)),
+so the same rules that advise on the PR also **gate the apply**.
+
+```
+plan ──▶ show (plan → JSON) ──▶ conftest test  ──▶  deny?  ──▶ apply blocked
+                                                     │
+                                       policy owner: atlantis approve_policies
 ```
 
-`$WORKSPACE` and `$PLANFILE` are injected by Atlantis. Paths are relative to each
-project `dir`, so the same workflow serves the root module and every service.
+- A `deny` (public RDS, unencrypted store, world-open admin port, IAM `*:*`)
+  **fails the check and blocks apply**.
+- Only a **policy owner** (`policies.owners` in `repos.yaml`) can override a
+  failing check with the `atlantis approve_policies` comment — this is separate
+  from the normal PR `approved` requirement, so relaxing a guardrail is an
+  explicit, attributable act.
+- `warn` rules (tags, `skip_final_snapshot`, …) surface in the comment but never
+  block.
+
+Single source of truth: the Rego lives in this repo under `policy/terraform/`.
+Deliver that directory read-only to the Atlantis pod at
+`/etc/atlantis/policies/terraform` (git-sync sidecar, projected volume, or baked
+image) so the server evaluates exactly what was reviewed in Git. `conftest` must
+be on the server `PATH` (bundled in recent Atlantis images).
 
 ---
 
@@ -188,15 +203,20 @@ via `use_lockfile = true`).
 ## Deploy checklist
 
 1. Run Atlantis (Helm chart `runatlantis/atlantis`, ECS, or EC2) with:
-   - `--repo-config=/etc/atlantis/repos.yaml` (the file above)
+   - `--repo-config=/etc/atlantis/repos.yaml` ([`atlantis/repos.yaml`](atlantis/repos.yaml))
    - `--repo-allowlist=github.com/huzaifa678/saas-services-infra`
+   - `--enable-policy-checks` (turns on the `policy_check` stage)
    - GitHub token/app + a webhook secret
 2. Mount the `TF_VAR_*` secrets into the pod env (External Secrets → envFrom).
-3. Attach the IAM role (IRSA / instance role).
-4. Add a GitHub **webhook** → `https://<atlantis-host>/events`, content type
+3. Mount this repo's `policy/terraform/` read-only at
+   `/etc/atlantis/policies/terraform` (git-sync sidecar / projected volume), and
+   confirm `conftest` is on the pod `PATH`.
+4. Attach the IAM role (IRSA / instance role).
+5. Add a GitHub **webhook** → `https://<atlantis-host>/events`, content type
    `application/json`, events: *Pull requests*, *Pushes*, *Issue comments*,
    *Pull request reviews*.
-5. Open a no-op PR (e.g. a comment in a `.tf`) and confirm Atlantis plans.
+6. Open a no-op PR (e.g. a comment in a `.tf`) and confirm Atlantis plans **and**
+   posts a policy-check result.
 
 > Atlantis is **not** an Argo CD `Application` — it reconciles Terraform/AWS, which
 > Argo CD cannot do. Keep it separate from your app-of-apps; Argo CD continues to

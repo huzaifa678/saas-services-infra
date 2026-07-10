@@ -52,6 +52,25 @@ jobs:
       - name: terraform validate
         run: terraform validate
 
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.61.0
+
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --recursive --minimum-failure-severity=error -f compact
+
+      - name: checkov (security scan)
+        run: |
+          pip install checkov
+          checkov --config-file .checkov.yaml
+
+      - name: install conftest
+        run: |
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+
       - name: terraform plan
         run: |
           terraform plan \
@@ -66,6 +85,11 @@ jobs:
           TF_VAR_openai_api_key:             ${{ secrets.TF_VAR_OPENAI_API_KEY }}
           TF_VAR_ava_oidc_client_id:         ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_ID }}
           TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}
+
+      - name: conftest (Policy as Code — gate before apply)
+        run: |
+          terraform show -json tfplan > tfplan.json
+          conftest test tfplan.json -p policy/terraform
 
       - name: terraform apply
         run: terraform apply -auto-approve tfplan
@@ -119,6 +143,11 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: terraform validate
 
+      - name: install conftest
+        run: |
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+
       - name: terraform plan
         working-directory: ${{ matrix.service }}
         run: |
@@ -131,6 +160,12 @@ jobs:
           TF_VAR_keycloak_jwks_url:       ${{ secrets.TF_VAR_KEYCLOAK_JWKS_URL }}
           TF_VAR_gateway_jwt_secret:      ${{ secrets.TF_VAR_GATEWAY_JWT_SECRET }}
           TF_VAR_stripe_api_key:          ${{ secrets.TF_VAR_STRIPE_API_KEY }}
+
+      - name: conftest (Policy as Code — gate before apply)
+        working-directory: ${{ matrix.service }}
+        run: |
+          terraform show -json tfplan > tfplan.json
+          conftest test tfplan.json -p ${{ github.workspace }}/policy/terraform
 
       - name: terraform apply
         working-directory: ${{ matrix.service }}

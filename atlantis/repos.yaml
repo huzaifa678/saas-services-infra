@@ -1,0 +1,36 @@
+repos:
+  - id: github.com/huzaifa678/saas-services-infra
+    apply_requirements: [approved, mergeable]
+    allowed_overrides: [workflow]
+    allow_custom_workflows: false
+
+policies:
+  owners:
+    users:
+      - huzaifa678
+  policy_sets:
+    - name: terraform-guardrails
+      path: /etc/atlantis/policies/terraform
+      source: local
+
+workflows:
+  env-deploy:
+    plan:
+      steps:
+        - env:
+            name: TF_WORKSPACE
+            value: default
+        - run: terraform init -reconfigure -backend-config=environments/$WORKSPACE/backend.hcl
+        - run: terraform fmt -check -recursive
+        - run: terraform validate
+        - run: terraform plan -input=false -lock-timeout=300s -var-file=environments/$WORKSPACE/terraform.tfvars -out=$PLANFILE
+    policy_check:
+      steps:
+        - show
+        - run: conftest test $SHOWFILE --policy /etc/atlantis/policies/terraform --no-color
+    apply:
+      steps:
+        - env:
+            name: TF_WORKSPACE
+            value: default
+        - run: terraform apply -input=false -lock-timeout=300s $PLANFILE
