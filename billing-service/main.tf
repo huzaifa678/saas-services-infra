@@ -1,18 +1,5 @@
-data "terraform_remote_state" "common" {
-  backend = "s3"
-  config = {
-    bucket = "saas-state-bucket-399849"
-    key    = var.root_state_key
-    region = var.region
-  }
-}
-
-locals {
-  common = data.terraform_remote_state.common.outputs
-}
-
 data "aws_secretsmanager_secret_version" "billing_db" {
-  secret_id = local.common.billing_db_secret_arn
+  secret_id = var.billing_db_secret_arn
 }
 
 resource "aws_secretsmanager_secret" "billing_service" {
@@ -26,10 +13,10 @@ resource "aws_secretsmanager_secret_version" "billing_service" {
     SPRING_DATASOURCE_URL          = "jdbc:postgresql://${local.db.endpoint}/${local.db.db_name}"
     SPRING_DATASOURCE_USERNAME     = local.db.username
     SPRING_DATASOURCE_PASSWORD     = local.db.password
-    SPRING_DATA_REDIS_HOST         = local.common.redis_endpoint
+    SPRING_DATA_REDIS_HOST         = var.redis_endpoint
     SPRING_DATA_REDIS_PORT         = "6379"
-    SPRING_KAFKA_BOOTSTRAP_SERVERS = local.common.kafka_bootstrap_brokers
-    SCHEMA_REGISTRY_ARN            = local.common.schema_registry_arn
+    SPRING_KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_brokers
+    SCHEMA_REGISTRY_ARN            = var.schema_registry_arn
     STRIPE_API_KEY                 = var.stripe_api_key
   })
 }

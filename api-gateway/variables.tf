@@ -3,11 +3,6 @@ variable "region" {
   default = "us-east-1"
 }
 
-variable "root_state_key" {
-  type        = string
-  description = "S3 key of the root Terraform state for this environment"
-}
-
 
 variable "gateway_jwt_secret" {
   type      = string
@@ -17,4 +12,10 @@ variable "gateway_jwt_secret" {
 variable "keycloak_jwks_url" {
   type    = string
   default = "http://keycloak:8081/realms/saas/protocol/openid-connect/certs"
+}
+
+# ── Input from the platform data layer (20-data) via Terragrunt dependency ────
+variable "redis_endpoint" {
+  type        = string
+  description = "ElastiCache primary endpoint. From 20-data."
 }

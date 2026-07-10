@@ -1,18 +1,5 @@
-data "terraform_remote_state" "common" {
-  backend = "s3"
-  config = {
-    bucket = "saas-state-bucket-399849"
-    key    = var.root_state_key
-    region = var.region
-  }
-}
-
-locals {
-  common = data.terraform_remote_state.common.outputs
-}
-
 data "aws_secretsmanager_secret_version" "subscription_db" {
-  secret_id = local.common.subscription_db_secret_arn
+  secret_id = var.subscription_db_secret_arn
 }
 
 resource "aws_secretsmanager_secret" "subscription_service" {
@@ -28,7 +15,7 @@ resource "aws_secretsmanager_secret_version" "subscription_service" {
     POSTGRES_USER       = local.db.username
     POSTGRES_PASSWORD   = local.db.password
     POSTGRES_DB         = local.db.db_name
-    KAFKA_BROKER        = local.common.kafka_bootstrap_brokers
-    SCHEMA_REGISTRY_ARN = local.common.schema_registry_arn
+    KAFKA_BROKER        = var.kafka_bootstrap_brokers
+    SCHEMA_REGISTRY_ARN = var.schema_registry_arn
   })
 }
