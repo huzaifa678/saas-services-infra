@@ -1,48 +1,145 @@
-ENV      ?= test
-SERVICES := api-gateway auth-service billing-service subscription-service
+SHELL       := /usr/bin/env bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := help
 
-ENV_DIR         := environments/$(ENV)
-BACKEND_CONFIG  := $(ENV_DIR)/backend.hcl
-TFVARS          := $(ENV_DIR)/terraform.tfvars
+ENV        ?= dev
+LAYER      ?=
+LIVE       := live/$(ENV)
+UNIT       := live/$(ENV)/$(LAYER)
+LAYERS     := 00-network 10-platform 20-data 30-edge 40-observability 50-addons-helm
+MODULES    := guardrails node-security-group data-security-groups verified-access \
+              eks iam rds msk elasticache observability k8s-and-helm otel grafana elk
+POLICY_DIR := policy
 
-.PHONY: fmt validate init plan apply \
-        $(SERVICES:%=init-%) $(SERVICES:%=plan-%) \
-        $(SERVICES:%=validate-%) $(SERVICES:%=apply-%)
+.PHONY: help
+help:
+	@grep -hE '^[a-zA-Z0-9_.-]+:.*?## ' $(MAKEFILE_LIST) \
+	  | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
-fmt:
+.PHONY: fmt
+fmt: 
 	terraform fmt -recursive
+	terragrunt hcl fmt
 
-validate: init
-	terraform validate
+.PHONY: fmt-check
+fmt-check: 
+	terraform fmt -recursive -check -diff
+	terragrunt hcl fmt --check --diff
 
-init:
-	terraform init -reconfigure -backend-config=$(BACKEND_CONFIG)
+.PHONY: validate
+validate: 
+	@for m in $(MODULES); do \
+	  echo "==> module/$$m"; \
+	  terraform -chdir=modules/$$m init -backend=false -input=false >/dev/null; \
+	  terraform -chdir=modules/$$m validate; \
+	done
+	@for l in $(LAYERS); do \
+	  echo "==> layer/$$l"; \
+	  terraform -chdir=layers/$$l init -backend=false -input=false >/dev/null; \
+	  terraform -chdir=layers/$$l validate; \
+	done
 
-plan: init
-	terraform plan -var-file=$(TFVARS)
+.PHONY: tg-render
+tg-render: ## Resolve every platform unit's config with dependency mocks (no AWS)
+	@for env in dev test prod; do \
+	  for l in $(LAYERS); do \
+	    printf "  %-4s %-18s " "$$env" "$$l"; \
+	    terragrunt render --working-dir live/$$env/$$l >/dev/null && echo ok; \
+	  done; \
+	done
 
-apply: init
-	terraform apply -var-file=$(TFVARS)
+.PHONY: svc-render
+svc-render: ## Resolve every service unit's config with dependency mocks (no AWS)
+	@for u in $$(find live/services -name terragrunt.hcl -not -path '*/_envcommon/*' | sed 's|/terragrunt.hcl||' | sort); do \
+	  printf "  %-30s " "$${u#live/services/}"; \
+	  terragrunt render --working-dir $$u >/dev/null && echo ok; \
+	done
 
-argo-sync:
-	argocd app sync pod-identity-refresh --prune
+.PHONY: test-guardrails
+test-guardrails: 
+	terraform -chdir=modules/guardrails init -backend=false -input=false >/dev/null
+	terraform -chdir=modules/guardrails test
 
-argo-wait:
-	argocd app wait pod-identity-refresh --health
+.PHONY: opa-fmt-check
+opa-fmt-check: 
+	conftest fmt --check $(POLICY_DIR)/opa
 
+.PHONY: opa-test
+opa-test: 
+	conftest verify --policy $(POLICY_DIR)/opa/terraform --policy $(POLICY_DIR)/opa/lib
+	conftest verify --policy $(POLICY_DIR)/opa/kubernetes
 
-# Usage: To make init-auth-service ENV=prod
-init-%:
-	terraform -chdir=$* init -reconfigure \
-	  -backend-config=environments/$(ENV)/backend.hcl
+.PHONY: checkov-test
+checkov-test:
+	python3 -m pytest $(POLICY_DIR)/checkov/tests -q
 
-validate-%: init-%
-	terraform -chdir=$* validate
+.PHONY: policy-test
+policy-test: opa-fmt-check opa-test checkov-test ## All hermetic policy tests
 
-plan-%: init-%
-	terraform -chdir=$* plan \
-	  -var-file=environments/$(ENV)/terraform.tfvars
+.PHONY: plan
+plan: 
+	@test -n "$(LAYER)" || { echo "LAYER is required, e.g. make plan ENV=prod LAYER=20-data"; exit 1; }
+	terragrunt plan --working-dir $(UNIT)
 
-apply-%: init-%
-	terraform -chdir=$* apply \
-	  -var-file=environments/$(ENV)/terraform.tfvars
+.PHONY: apply
+apply: 
+	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
+	terragrunt apply --working-dir $(UNIT)
+
+.PHONY: plan-all
+plan-all: 
+	terragrunt run-all plan --working-dir $(LIVE) --non-interactive
+
+.PHONY: apply-all
+apply-all:
+	terragrunt run-all apply --working-dir $(LIVE)
+
+# ── Services (separate tree: live/services/<env>/<service>) ───────────────────
+.PHONY: svc-plan
+svc-plan: ## make svc-plan ENV=test SERVICE=api-gateway
+	@test -n "$(SERVICE)" || { echo "SERVICE is required, e.g. make svc-plan ENV=test SERVICE=api-gateway"; exit 1; }
+	terragrunt plan --working-dir live/services/$(ENV)/$(SERVICE)
+
+.PHONY: svc-apply
+svc-apply: ## make svc-apply ENV=test SERVICE=api-gateway
+	@test -n "$(SERVICE)" || { echo "SERVICE is required"; exit 1; }
+	terragrunt apply --working-dir live/services/$(ENV)/$(SERVICE)
+
+.PHONY: svc-plan-all
+svc-plan-all: ## Plan every service in ENV (dependency mocks fill the platform)
+	terragrunt run-all plan --working-dir live/services/$(ENV) --non-interactive
+
+.PHONY: conftest
+conftest: 
+	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
+	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin
+	terragrunt show --working-dir $(UNIT) -json tfplan.bin > $(UNIT)/plan.json
+	conftest test $(UNIT)/plan.json \
+	  --policy $(POLICY_DIR)/opa/terraform \
+	  --policy $(POLICY_DIR)/opa/lib \
+	  --namespace terraform.security,terraform.governance \
+	  --all-namespaces=false
+
+.PHONY: checkov
+checkov:
+	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
+	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin
+	terragrunt show --working-dir $(UNIT) -json tfplan.bin > $(UNIT)/plan.json
+	checkov --config-file .checkov.yaml -f $(UNIT)/plan.json
+
+.PHONY: policy
+policy: conftest checkov 
+
+.PHONY: ci-static
+ci-static: fmt-check validate test-guardrails policy-test tg-render svc-render ## Everything hermetic
+
+.PHONY: lint
+lint: 
+	tflint --init
+	tflint --recursive --minimum-failure-severity=error
+
+.PHONY: clean
+clean:
+	find . -name '.terraform' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+	find . -name '.terragrunt-cache' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+	find . \( -name 'tfplan.bin' -o -name 'plan.json' \) -delete 2>/dev/null || true

@@ -1,0 +1,136 @@
+name: infra-validate
+
+# Shift-left guardrails on every infra PR: lint, security scan, and Policy-as-Code.
+# This is the CI twin of the Atlantis `policy_check` stage — the same Rego set gates
+# both. Atlantis stays the enforced apply gate; this gives fast feedback in the PR.
+
+on:
+  pull_request:
+    paths:
+      - '**/*.tf'
+      - '**/*.hcl'
+      - '**/*.tfvars'
+      - 'policy/**'
+      - '.tflint.hcl'
+      - '.checkov.yaml'
+      - '.github/workflows/infra-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TFLINT_VERSION: v0.61.0
+  CONFTEST_VERSION: 0.56.0
+  TERRAGRUNT_VERSION: v0.69.9
+
+jobs:
+  # ── Hermetic gates: no cloud creds, run on every PR (incl. forks) ───────────
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.14.8"
+          terraform_wrapper: false
+
+      - name: install terragrunt
+        run: |
+          sudo curl -sSfL -o /usr/local/bin/terragrunt \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
+          sudo chmod +x /usr/local/bin/terragrunt
+
+      - name: fmt (terraform + terragrunt)
+        run: make fmt-check
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: tflint
+        run: |
+          tflint --init
+          # Warnings (missing required_version, unused vars, …) are reported but
+          # only errors fail the build.
+          tflint --recursive --minimum-failure-severity=error -f compact
+
+      - name: install conftest
+        run: |
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+
+      - name: guardrails module test suite
+        run: make test-guardrails
+
+      - name: terragrunt wiring (render every platform + service unit with mocks)
+        run: |
+          make tg-render
+          make svc-render
+
+      - name: policy unit tests (Rego + custom Checkov checks)
+        run: |
+          pip install checkov pytest
+          make policy-test
+
+  # ── Plan-level PAC: same rules Atlantis enforces, against a real plan ────────
+  plan-policy:
+    needs: static-analysis
+    runs-on: ubuntu-latest
+    environment: test
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      # Each layer plans independently: Terragrunt fills unapplied upstream
+      # dependencies from mock_outputs, so this is a policy preview, not a real
+      # ordered apply. Kept serial to bound concurrent state access.
+      max-parallel: 1
+      matrix:
+        layer:
+          - 00-network
+          - 10-platform
+          - 20-data
+          - 30-edge
+          - 40-observability
+          - 50-addons-helm
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region:     us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.14.8"
+          terraform_wrapper: false
+
+      - name: install terragrunt
+        run: |
+          sudo curl -sSfL -o /usr/local/bin/terragrunt \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
+          sudo chmod +x /usr/local/bin/terragrunt
+
+      - name: install conftest + checkov
+        run: |
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          pip install checkov
+
+      - name: plan + policy gate (${{ matrix.layer }})
+        run: |
+          make plan     ENV=test LAYER=${{ matrix.layer }}
+          make conftest ENV=test LAYER=${{ matrix.layer }}
+          make checkov  ENV=test LAYER=${{ matrix.layer }}
+        env:
+          TF_VAR_keycloak_db_password:       ${{ secrets.TF_VAR_KEYCLOAK_DB_PASSWORD }}
+          TF_VAR_subscription_db_password:   ${{ secrets.TF_VAR_SUBSCRIPTION_DB_PASSWORD }}
+          TF_VAR_billing_db_password:        ${{ secrets.TF_VAR_BILLING_DB_PASSWORD }}
+          TF_VAR_usage_db_password:          ${{ secrets.TF_VAR_USAGE_DB_PASSWORD }}
+          TF_VAR_auth_db_password:           ${{ secrets.TF_VAR_AUTH_DB_PASSWORD }}
+          TF_VAR_opensearch_master_password: ${{ secrets.TF_VAR_OPENSEARCH_MASTER_PASSWORD }}
+          TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}

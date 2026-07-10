@@ -2,140 +2,296 @@ version: 3
 
 automerge: false
 parallel_plan: true
+# Layers share state; a downstream apply reads upstream outputs, so applies are
+# serialized and ordered by execution_order_group (= layer index; services = 6).
 parallel_apply: false
+abort_on_execution_order_fail: true
 
 projects:
-  - name: root-dev
-    dir: .
+  - name: 00-network-dev
+    dir: live/dev/00-network
     workspace: dev
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 0
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "modules/**/*.tf", "environments/dev/*.tfvars", "environments/dev/*.hcl"]
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/00-network.hcl", "../../../root.hcl", "../../../layers/00-network/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
 
-  - name: root-test
-    dir: .
+  - name: 10-platform-dev
+    dir: live/dev/10-platform
+    workspace: dev
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 1
+    depends_on: ["00-network-dev"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/10-platform.hcl", "../../../root.hcl", "../../../layers/10-platform/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 20-data-dev
+    dir: live/dev/20-data
+    workspace: dev
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 2
+    depends_on: ["10-platform-dev"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/20-data.hcl", "../../../root.hcl", "../../../layers/20-data/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 30-edge-dev
+    dir: live/dev/30-edge
+    workspace: dev
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 3
+    depends_on: ["20-data-dev"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/30-edge.hcl", "../../../root.hcl", "../../../layers/30-edge/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 40-observability-dev
+    dir: live/dev/40-observability
+    workspace: dev
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 4
+    depends_on: ["30-edge-dev"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/40-observability.hcl", "../../../root.hcl", "../../../layers/40-observability/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 50-addons-helm-dev
+    dir: live/dev/50-addons-helm
+    workspace: dev
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 5
+    depends_on: ["40-observability-dev"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/50-addons-helm.hcl", "../../../root.hcl", "../../../layers/50-addons-helm/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 00-network-test
+    dir: live/test/00-network
     workspace: test
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 0
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "modules/**/*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/00-network.hcl", "../../../root.hcl", "../../../layers/00-network/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
 
-  - name: root-prod
-    dir: .
+  - name: 10-platform-test
+    dir: live/test/10-platform
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 1
+    depends_on: ["00-network-test"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/10-platform.hcl", "../../../root.hcl", "../../../layers/10-platform/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 20-data-test
+    dir: live/test/20-data
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 2
+    depends_on: ["10-platform-test"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/20-data.hcl", "../../../root.hcl", "../../../layers/20-data/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 30-edge-test
+    dir: live/test/30-edge
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 3
+    depends_on: ["20-data-test"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/30-edge.hcl", "../../../root.hcl", "../../../layers/30-edge/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 40-observability-test
+    dir: live/test/40-observability
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 4
+    depends_on: ["30-edge-test"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/40-observability.hcl", "../../../root.hcl", "../../../layers/40-observability/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 50-addons-helm-test
+    dir: live/test/50-addons-helm
+    workspace: test
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 5
+    depends_on: ["40-observability-test"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/50-addons-helm.hcl", "../../../root.hcl", "../../../layers/50-addons-helm/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 00-network-prod
+    dir: live/prod/00-network
     workspace: prod
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 0
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "modules/**/*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/00-network.hcl", "../../../root.hcl", "../../../layers/00-network/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
 
+  - name: 10-platform-prod
+    dir: live/prod/10-platform
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 1
+    depends_on: ["00-network-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/10-platform.hcl", "../../../root.hcl", "../../../layers/10-platform/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 20-data-prod
+    dir: live/prod/20-data
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 2
+    depends_on: ["10-platform-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/20-data.hcl", "../../../root.hcl", "../../../layers/20-data/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 30-edge-prod
+    dir: live/prod/30-edge
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 3
+    depends_on: ["20-data-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/30-edge.hcl", "../../../root.hcl", "../../../layers/30-edge/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 40-observability-prod
+    dir: live/prod/40-observability
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 4
+    depends_on: ["30-edge-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/40-observability.hcl", "../../../root.hcl", "../../../layers/40-observability/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  - name: 50-addons-helm-prod
+    dir: live/prod/50-addons-helm
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 5
+    depends_on: ["40-observability-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../env.hcl", "../../_envcommon/50-addons-helm.hcl", "../../../root.hcl", "../../../layers/50-addons-helm/**/*.tf", "../../../modules/**/*.tf", "../../../policy/**"]
+
+  # ── Services: separate tree, deployed after the platform layers ──────────────
   - name: api-gateway-test
-    dir: api-gateway
+    dir: live/services/test/api-gateway
     workspace: test
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["20-data-test"]
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
-
-  - name: api-gateway-stage
-    dir: api-gateway
-    workspace: stage
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
-
-  - name: api-gateway-prod
-    dir: api-gateway
-    workspace: prod
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+      when_modified: ["*.hcl", "../../_envcommon/api-gateway.hcl", "../../../../root.hcl", "../../../../api-gateway/**/*.tf"]
 
   - name: auth-service-test
-    dir: auth-service
+    dir: live/services/test/auth-service
     workspace: test
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["20-data-test"]
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
-
-  - name: auth-service-stage
-    dir: auth-service
-    workspace: stage
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
-
-  - name: auth-service-prod
-    dir: auth-service
-    workspace: prod
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+      when_modified: ["*.hcl", "../../_envcommon/auth-service.hcl", "../../../../root.hcl", "../../../../auth-service/**/*.tf"]
 
   - name: billing-service-test
-    dir: billing-service
+    dir: live/services/test/billing-service
     workspace: test
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["00-network-test", "20-data-test"]
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
-
-  - name: billing-service-stage
-    dir: billing-service
-    workspace: stage
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
-
-  - name: billing-service-prod
-    dir: billing-service
-    workspace: prod
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+      when_modified: ["*.hcl", "../../_envcommon/billing-service.hcl", "../../../../root.hcl", "../../../../billing-service/**/*.tf"]
 
   - name: subscription-service-test
-    dir: subscription-service
+    dir: live/services/test/subscription-service
     workspace: test
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["00-network-test", "20-data-test"]
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "environments/test/*.tfvars", "environments/test/*.hcl"]
+      when_modified: ["*.hcl", "../../_envcommon/subscription-service.hcl", "../../../../root.hcl", "../../../../subscription-service/**/*.tf"]
 
-  - name: subscription-service-stage
-    dir: subscription-service
-    workspace: stage
-    terraform_version: v1.14.8
-    workflow: env-deploy
-    autoplan:
-      enabled: true
-      when_modified: ["*.tf", "environments/stage/*.tfvars", "environments/stage/*.hcl"]
-
-  - name: subscription-service-prod
-    dir: subscription-service
+  - name: api-gateway-prod
+    dir: live/services/prod/api-gateway
     workspace: prod
     terraform_version: v1.14.8
-    workflow: env-deploy
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["20-data-prod"]
     autoplan:
       enabled: true
-      when_modified: ["*.tf", "environments/prod/*.tfvars", "environments/prod/*.hcl"]
+      when_modified: ["*.hcl", "../../_envcommon/api-gateway.hcl", "../../../../root.hcl", "../../../../api-gateway/**/*.tf"]
+
+  - name: billing-service-prod
+    dir: live/services/prod/billing-service
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["00-network-prod", "20-data-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../../_envcommon/billing-service.hcl", "../../../../root.hcl", "../../../../billing-service/**/*.tf"]
+
+  - name: subscription-service-prod
+    dir: live/services/prod/subscription-service
+    workspace: prod
+    terraform_version: v1.14.8
+    workflow: terragrunt
+    execution_order_group: 6
+    depends_on: ["00-network-prod", "20-data-prod"]
+    autoplan:
+      enabled: true
+      when_modified: ["*.hcl", "../../_envcommon/subscription-service.hcl", "../../../../root.hcl", "../../../../subscription-service/**/*.tf"]
+
+workflows:
+  terragrunt:
+    plan:
+      steps:
+        - env:
+            name: TERRAGRUNT_TFPATH
+            command: 'echo "terraform${ATLANTIS_TERRAFORM_VERSION}"'
+        - env:
+            name: TG_NON_INTERACTIVE
+            value: "true"
+        - run: terragrunt plan -out=$PLANFILE
+    apply:
+      steps:
+        - run: terragrunt apply $PLANFILE
