@@ -1,0 +1,25 @@
+framework:
+  - terraform_plan
+
+external-checks-dir:
+  - policy/checkov/custom
+
+compact: true
+quiet: true
+
+soft-fail: true
+
+hard-fail-on:
+  - CKV_SAAS_1
+  - CKV_SAAS_2
+  - CKV_SAAS_3
+  - CKV_SAAS_4
+  - CKV_SAAS_5
+
+skip-check:
+  - CKV_AWS_157
+  - CKV_AWS_51
+
+skip-path:
+  - .terraform
+  - .git
