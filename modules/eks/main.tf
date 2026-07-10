@@ -1,95 +1,130 @@
-resource "aws_eks_cluster" "eks_cluster" {
-  name     = var.cluster_name
-  role_arn = aws_iam_role.eks_cluster_role.arn
-  version  = var.kubernetes_version
+terraform {
+  required_version = ">= 1.3.0"
 
-  vpc_config {
-    subnet_ids              = var.private_subnets
-    endpoint_private_access = true
-    endpoint_public_access  = var.enable_public_access
-  }
-
-  encryption_config {
-    resources = ["secrets"]
-    provider {
-      key_arn = var.kms_key_arn
-    }
-  }
-
-  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-
-  access_config {
-    authentication_mode                         = "API"
-    bootstrap_cluster_creator_admin_permissions = true
-  }
-
-  tags = {
-    cluster = var.cluster_name
-  }
-}
-
-data "aws_eks_cluster" "this" {
-  name = aws_eks_cluster.eks_cluster.name
-}
-
-data "aws_ssm_parameter" "eks_al2023_ami" {
-  name = "/aws/service/eks/optimized-ami/1.32/amazon-linux-2023/x86_64/standard/recommended/image_id"
-}
-
-resource "aws_launch_template" "eks_nodes" {
-  name_prefix   = "eks-nodes-lt"
-  instance_type = var.node_instance_type
-
-  vpc_security_group_ids = [
-    var.eks_nodes_sg_id,
-    aws_eks_cluster.eks_cluster.vpc_config[0].cluster_security_group_id
-  ]
-
-  image_id = data.aws_ssm_parameter.eks_al2023_ami.value
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 1
-  }
-
-  user_data = base64encode(templatefile("${path.module}/user_data.tpl", {
-    cluster_name     = aws_eks_cluster.eks_cluster.name
-    cluster_endpoint = data.aws_eks_cluster.this.endpoint
-    cluster_ca       = data.aws_eks_cluster.this.certificate_authority[0].data
-    cidr             = aws_eks_cluster.eks_cluster.kubernetes_network_config[0].service_ipv4_cidr
-  }))
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name = "eks-node"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.95.0"
     }
   }
 }
 
-resource "aws_eks_node_group" "eks_node_group" {
-  cluster_name    = aws_eks_cluster.eks_cluster.name
-  node_group_name = "node-group"
-  node_role_arn   = aws_iam_role.eks_node_role.arn
-  subnet_ids      = var.private_subnets
+# Resolve the IAM role behind whoever is running Terraform. With
+# enable_cluster_creator_admin_permissions turned OFF, this role gets cluster
+# admin through an explicit access entry instead of the bootstrap shortcut, so
+# the cluster is never left without an administrator.
+data "aws_caller_identity" "current" {}
 
-  scaling_config {
-    desired_size = var.desired_size
-    min_size     = var.min_size
-    max_size     = var.max_size
-  }
+data "aws_iam_session_context" "current" {
+  arn = data.aws_caller_identity.current.arn
+}
 
-  ami_type = "CUSTOM"
+locals {
+  admin_principal_arns = toset(concat(
+    var.include_caller_as_cluster_admin ? [data.aws_iam_session_context.current.issuer_arn] : [],
+    var.cluster_admin_principal_arns,
+  ))
 
-  launch_template {
-    id      = aws_launch_template.eks_nodes.id
-    version = aws_launch_template.eks_nodes.latest_version
+  # AWS-managed cluster-scoped admin policy, attached via an access entry.
+  cluster_admin_policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_entries = {
+    for arn in local.admin_principal_arns : arn => {
+      principal_arn = arn
+      policy_associations = {
+        admin = {
+          policy_arn = local.cluster_admin_policy_arn
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
   }
 }
 
-resource "aws_iam_openid_connect_provider" "eks" {
-  url             = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da0ecd4e0a4"]
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 20.0"
+
+  cluster_name    = var.cluster_name
+  cluster_version = var.kubernetes_version
+
+  vpc_id     = var.vpc_id
+  subnet_ids = var.private_subnets
+
+  # Endpoint posture is driven by the platform layer / guardrails. Private access
+  # is always on; public access (dev only) is CIDR-scoped, never wide open.
+  cluster_endpoint_private_access      = true
+  cluster_endpoint_public_access       = var.enable_public_access
+  cluster_endpoint_public_access_cidrs = var.endpoint_public_access_cidrs
+
+  cluster_enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+  # Envelope-encrypt secrets with the shared CMK from 00-network (the module does
+  # not create its own key).
+  create_kms_key = false
+  cluster_encryption_config = {
+    provider_key_arn = var.kms_key_arn
+    resources        = ["secrets"]
+  }
+
+  # OIDC provider for IRSA / pod identity consumers in later layers.
+  enable_irsa = true
+
+  # ── Access: the API way, no creator-admin shortcut ─────────────────────────
+  authentication_mode                      = "API"
+  enable_cluster_creator_admin_permissions = false
+  access_entries                           = local.access_entries
+
+  cluster_addons = {
+    coredns = {
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
+    }
+    kube-proxy = {
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
+    }
+    vpc-cni = {
+      before_compute              = true
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
+    }
+    eks-pod-identity-agent = {
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
+    }
+    aws-ebs-csi-driver = {
+      service_account_role_arn    = var.ebs_csi_role_arn
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
+    }
+  }
+
+  eks_managed_node_groups = {
+    default = {
+      ami_type       = "AL2023_x86_64_STANDARD"
+      instance_types = [var.node_instance_type]
+
+      min_size     = var.min_size
+      max_size     = var.max_size
+      desired_size = var.desired_size
+
+      # The module creates the node<->control-plane security group and its rules.
+      # We additionally attach the external node SG (from modules/node-security-
+      # group) so the data-tier SGs, which allow that SG as their only ingress
+      # source, keep working.
+      vpc_security_group_ids = [var.eks_nodes_sg_id]
+
+      # IMDSv2 required (blocks SSRF credential theft). Guardrails mandates this.
+      metadata_options = {
+        http_endpoint               = "enabled"
+        http_tokens                 = "required"
+        http_put_response_hop_limit = 1
+      }
+    }
+  }
+
+  tags = merge(var.tags, { cluster = var.cluster_name })
 }

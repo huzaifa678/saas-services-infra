@@ -1,32 +1,29 @@
 output "eks_cluster_name" {
-  value = aws_eks_cluster.eks_cluster.name
+  value = module.eks.cluster_name
 }
 
 output "eks_cluster_endpoint" {
-  value = aws_eks_cluster.eks_cluster.endpoint
+  value = module.eks.cluster_endpoint
 }
 
 output "eks_cluster_ca" {
-  value = aws_eks_cluster.eks_cluster.certificate_authority[0].data
+  value = module.eks.cluster_certificate_authority_data
 }
 
 output "eks_node_group" {
-  value = aws_eks_node_group.eks_node_group
+  description = "Managed node group object. Consumed as a depends_on handle so Helm installs wait for nodes."
+  value       = module.eks.eks_managed_node_groups["default"]
 }
 
 output "oidc_provider_arn" {
-  value = aws_iam_openid_connect_provider.eks.arn
+  value = module.eks.oidc_provider_arn
 }
 
 output "oidc_issuer" {
-  value = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
+  value = module.eks.cluster_oidc_issuer_url
 }
 
-output "verified_access_endpoint_dns" {
-  description = "DNS name of the Verified Access endpoint — use this as your kubectl server"
-  value       = var.enable_verified_access ? aws_verifiedaccess_endpoint.eks_api[0].endpoint_domain : null
-}
-
-output "verified_access_endpoint_id" {
-  value = var.enable_verified_access ? aws_verifiedaccess_endpoint.eks_api[0].id : null
+output "cluster_admin_principal_arns" {
+  description = "Principals granted cluster admin via access entries."
+  value       = tolist(local.admin_principal_arns)
 }
