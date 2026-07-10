@@ -16,10 +16,6 @@ variable "eks_node_group" {
   type = any
 }
 
-variable "vpc" {
-  type = any
-}
-
 variable "vpc_id" {
   type = string
 }

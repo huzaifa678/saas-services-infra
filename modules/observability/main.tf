@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.3.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.95.0"
+    }
+  }
+}
+
 module "grafana" {
   count  = var.stack == "grafana" ? 1 : 0
   source = "../grafana"
@@ -29,17 +40,4 @@ locals {
     module.elk[0].otel_collector_irsa_role_arn,
     try(module.grafana[0].otel_collector_irsa_role_arn, null)
   )
-}
-
-module "otel" {
-  source = "../otel"
-
-  cluster_name                 = var.cluster_name
-  otel_collector_irsa_role_arn = local.otel_irsa_role_arn
-  prometheus_endpoint          = local.prometheus_endpoint
-  opensearch_endpoint          = try(module.elk[0].opensearch_endpoint, null)
-  opensearch_username          = var.opensearch_master_username
-  opensearch_password          = var.opensearch_master_password
-  region                       = var.region
-  observability                = var.stack
 }

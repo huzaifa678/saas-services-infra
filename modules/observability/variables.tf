@@ -8,16 +8,6 @@ variable "stack" {
   }
 }
 
-variable "cluster_name" {
-  type        = string
-  description = "EKS cluster name for the ADOT addon"
-}
-
-variable "region" {
-  type    = string
-  default = "us-east-1"
-}
-
 variable "oidc_provider_arn" {
   type        = string
   description = "OIDC provider ARN from EKS module"
