@@ -20,7 +20,8 @@ data "kubectl_file_documents" "saas_manifest" {
 }
 
 resource "kubectl_manifest" "saas_app" {
-  yaml_body  = data.kubectl_file_documents.saas_manifest.content
+  for_each   = data.kubectl_file_documents.saas_manifest.manifests
+  yaml_body  = each.value
   wait       = true
   depends_on = [helm_release.argocd]
 }
