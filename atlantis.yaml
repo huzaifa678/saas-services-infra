@@ -292,6 +292,14 @@ workflows:
             name: TG_NON_INTERACTIVE
             value: "true"
         - run: terragrunt plan -out=$PLANFILE
+        # ── Infracost: append a cost estimate to the plan comment ──────────────
+        # Informational only — never fail the plan on a cost-tool error (a layer
+        # with no billable resources, e.g. 50-addons-helm, is expected). Needs
+        # INFRACOST_API_KEY in the Atlantis server environment.
+        - run: terragrunt show -json $PLANFILE > $SHOWFILE
+        - run: |
+            infracost breakdown --path=$SHOWFILE --format=table \
+              || echo "infracost: skipped (no priced resources or estimate unavailable)"
     apply:
       steps:
         - run: terragrunt apply $PLANFILE

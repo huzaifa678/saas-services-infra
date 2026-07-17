@@ -1,0 +1,82 @@
+name: infracost
+
+on:
+  pull_request:
+    paths:
+      - '**/*.tf'
+      - '**/*.hcl'
+      - '**/*.tfvars'
+      - '.github/workflows/infracost.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TERRAGRUNT_VERSION: v0.69.9
+  # 50-addons-helm is omitted: it holds no billable AWS resources and its
+  # helm/kubernetes providers need a live cluster to plan.
+  LAYERS: "00-network 10-platform 20-data 30-edge 40-observability"
+
+jobs:
+  cost:
+    runs-on: ubuntu-latest
+    environment: test
+    permissions:
+      id-token: write        # assume the AWS role via OIDC
+      contents: read
+      pull-requests: write   # post / update the cost comment
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region:     us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.14.8"
+          terraform_wrapper: false
+
+      - name: install terragrunt
+        run: |
+          sudo curl -sSfL -o /usr/local/bin/terragrunt \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
+          sudo chmod +x /usr/local/bin/terragrunt
+
+      - uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: plan + cost breakdown (env=test)
+        run: |
+          rm -rf /tmp/infracost && mkdir -p /tmp/infracost
+          for layer in $LAYERS; do
+            echo "==> $layer"
+            terragrunt plan --working-dir "live/test/$layer" -out=tfplan.bin
+            terragrunt show --working-dir "live/test/$layer" -json tfplan.bin \
+              > "live/test/$layer/plan.json"
+            infracost breakdown \
+              --path "live/test/$layer/plan.json" \
+              --format json \
+              --out-file "/tmp/infracost/$layer.json"
+          done
+        env:
+          TF_VAR_keycloak_db_password:       ${{ secrets.TF_VAR_KEYCLOAK_DB_PASSWORD }}
+          TF_VAR_subscription_db_password:   ${{ secrets.TF_VAR_SUBSCRIPTION_DB_PASSWORD }}
+          TF_VAR_billing_db_password:        ${{ secrets.TF_VAR_BILLING_DB_PASSWORD }}
+          TF_VAR_usage_db_password:          ${{ secrets.TF_VAR_USAGE_DB_PASSWORD }}
+          TF_VAR_auth_db_password:           ${{ secrets.TF_VAR_AUTH_DB_PASSWORD }}
+          TF_VAR_opensearch_master_password: ${{ secrets.TF_VAR_OPENSEARCH_MASTER_PASSWORD }}
+          TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}
+
+      - name: post cost comment
+        run: |
+          infracost comment github \
+            --path "/tmp/infracost/*.json" \
+            --repo "$GITHUB_REPOSITORY" \
+            --github-token "${{ github.token }}" \
+            --pull-request "${{ github.event.pull_request.number }}" \
+            --behavior update
+        if: github.event_name == 'pull_request'

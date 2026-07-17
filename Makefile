@@ -128,7 +128,29 @@ checkov:
 	checkov --config-file .checkov.yaml -f $(UNIT)/plan.json
 
 .PHONY: policy
-policy: conftest checkov 
+policy: conftest checkov
+
+# ── Cost estimation (Infracost) ──────────────────────────────────────────────
+# Same plan -> show -json -> read plan.json pattern as conftest/checkov, so it
+# reuses the mock_outputs wiring and needs no extra state access at estimate time.
+# Requires INFRACOST_API_KEY in the environment (get a free key: infracost auth login).
+.PHONY: infracost
+infracost: ## Cost estimate for one unit: make infracost ENV=prod LAYER=20-data
+	@test -n "$(LAYER)" || { echo "LAYER is required, e.g. make infracost ENV=prod LAYER=20-data"; exit 1; }
+	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin
+	terragrunt show --working-dir $(UNIT) -json tfplan.bin > $(UNIT)/plan.json
+	infracost breakdown --path $(UNIT)/plan.json
+
+.PHONY: infracost-all
+infracost-all: ## Full cost breakdown for ENV across all cost-bearing layers
+	@rm -rf /tmp/infracost && mkdir -p /tmp/infracost
+	@for l in 00-network 10-platform 20-data 30-edge 40-observability; do \
+	  echo "==> $(ENV)/$$l"; \
+	  terragrunt plan --working-dir $(LIVE)/$$l -out=tfplan.bin; \
+	  terragrunt show --working-dir $(LIVE)/$$l -json tfplan.bin > $(LIVE)/$$l/plan.json; \
+	  infracost breakdown --path $(LIVE)/$$l/plan.json --format json --out-file /tmp/infracost/$$l.json; \
+	done
+	infracost output --path "/tmp/infracost/*.json" --format table
 
 .PHONY: ci-static
 ci-static: fmt-check validate test-guardrails policy-test tg-render svc-render ## Everything hermetic

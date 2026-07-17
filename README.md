@@ -167,6 +167,25 @@ make policy        # plan -> show -json -> conftest test (needs AWS creds)
 policy owner runs `atlantis approve_policies`. Config is version-controlled at
 [`atlantis/repos.yaml`](atlantis/repos.yaml) — see [`ATLANTIS.md`](ATLANTIS.md#policy-checks-guardrails).
 
+## Cost estimation
+
+Every infra PR also gets a cloud-cost estimate from
+[Infracost](https://www.infracost.io/) — informational, it never gates a merge.
+
+- **CI** ([`.github/workflows/infracost.yml`](.github/workflows/infracost.yml)):
+  plans the cost-bearing `test` layers, reads each plan JSON, and posts one
+  combined cost comment on the PR.
+- **Atlantis**: the `terragrunt` plan workflow appends an `infracost breakdown`
+  table to each plan comment (see [`ATLANTIS.md`](ATLANTIS.md#required-environment-on-the-atlantis-server)).
+
+```bash
+make infracost     ENV=prod LAYER=20-data   # one unit
+make infracost-all ENV=prod                 # all cost-bearing layers
+```
+
+Both need `INFRACOST_API_KEY` (free, from `infracost auth login`). CI also needs
+it as a repo secret alongside `AWS_DEPLOY_ROLE_ARN`.
+
 ---
 
 ## State Backend
@@ -192,7 +211,8 @@ backend "s3" {
 - [ ] Usage service infrastructure (RDS provisioned, service Helm chart pending)
 - [ ] Airflow DAGs and production configuration
 - [ ] Stage environment parity with prod
-- [ ] CI/CD pipeline integration
+- [x] CI/CD pipeline integration
+- [x] Cost estimation on PRs (Infracost — CI + Atlantis)
 - [ ] Disaster recovery / backup policies
 - [ ] Secure password protection for RDS
 - [ ] Loose coupling of services credentials from remote backend s3 of the main infra
