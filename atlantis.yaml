@@ -11,7 +11,6 @@ projects:
   - name: 00-network-dev
     dir: live/dev/00-network
     workspace: dev
-    terraform_version: v1.14.7
     workflow: terragrunt
     execution_order_group: 0
     autoplan:
@@ -285,9 +284,6 @@ workflows:
   terragrunt:
     plan:
       steps:
-        - env:
-            name: TERRAGRUNT_TFPATH
-            command: 'echo "terraform${ATLANTIS_TERRAFORM_VERSION}"'
         - env:
             name: TG_NON_INTERACTIVE
             value: "true"
