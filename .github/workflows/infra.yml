@@ -6,9 +6,13 @@ on:
       environment:
         description: "Target environment"
         required: true
-        default: "test"
+        default: "dev"
         type: choice
-        options: [test, stage, prod]
+        options: [dev, test, prod]
+      layer:
+        description: "Target layer"
+        required: true
+        type: string
   workflow_run:
     workflows: []
     branches: [main]
@@ -18,6 +22,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+
+    defaults:
+      run:
+        working-directory: live/${{ inputs.environment }}/${{ inputs.layer }}
 
     permissions:
       id-token: write
@@ -36,63 +44,21 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region:     us-east-1
 
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "~1.14.8"
-          terraform_wrapper: false
+      - name: Setup Terragrunt
+        uses: ./.github/actions/setup-terragrunt
 
-      - name: terraform init
-        run: |
-          terraform init -reconfigure \
-            -backend-config="environments/${{ inputs.environment }}/backend.hcl"
-
-      - name: terraform fmt
-        run: terraform fmt -check -recursive
-
-      - name: terraform validate
-        run: terraform validate
-
-      - uses: terraform-linters/setup-tflint@v4
-        with:
-          tflint_version: v0.61.0
-
-      - name: tflint
-        run: |
-          tflint --init
-          tflint --recursive --minimum-failure-severity=error -f compact
-
-      - name: checkov (security scan)
-        run: |
-          pip install checkov
-          checkov --config-file .checkov.yaml
-
-      - name: install conftest
-        run: |
-          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin conftest
-
-      - name: terraform plan
-        run: |
-          terraform plan \
-            -var-file="environments/${{ inputs.environment }}/terraform.tfvars" \
-            -out=tfplan
+      - name: Apply layer
+        run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }}
         env:
           TF_VAR_keycloak_db_password:       ${{ secrets.TF_VAR_KEYCLOAK_DB_PASSWORD }}
           TF_VAR_subscription_db_password:   ${{ secrets.TF_VAR_SUBSCRIPTION_DB_PASSWORD }}
           TF_VAR_billing_db_password:        ${{ secrets.TF_VAR_BILLING_DB_PASSWORD }}
           TF_VAR_usage_db_password:          ${{ secrets.TF_VAR_USAGE_DB_PASSWORD }}
+          TF_VAR_auth_db_password:           ${{ secrets.TF_VAR_AUTH_DB_PASSWORD }}
           TF_VAR_opensearch_master_password: ${{ secrets.TF_VAR_OPENSEARCH_MASTER_PASSWORD }}
           TF_VAR_openai_api_key:             ${{ secrets.TF_VAR_OPENAI_API_KEY }}
           TF_VAR_ava_oidc_client_id:         ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_ID }}
           TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}
-
-      - name: conftest (Policy as Code — gate before apply)
-        run: |
-          terraform show -json tfplan > tfplan.json
-          conftest test tfplan.json -p policy/terraform
-
-      - name: terraform apply
-        run: terraform apply -auto-approve tfplan
 
       - name: capture ECR outputs
         id: outputs
@@ -106,6 +72,10 @@ jobs:
     needs: root
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+
+    defaults:
+      run:
+        working-directory: live/${{ inputs.environment }}/${{ matrix.service }}
 
     permissions:
       id-token: write
@@ -124,49 +94,14 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region:     us-east-1
 
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "~1.14.8"
-          terraform_wrapper: false
+      - name: Set Terragrunt
+        uses: ./.github/actions/setup-terragrunt
 
-      - name: terraform init
-        working-directory: ${{ matrix.service }}
-        run: |
-          terraform init -reconfigure \
-            -backend-config="environments/${{ inputs.environment }}/backend.hcl"
-
-      - name: terraform fmt
-        working-directory: ${{ matrix.service }}
-        run: terraform fmt -check -recursive
-
-      - name: terraform validate
-        working-directory: ${{ matrix.service }}
-        run: terraform validate
-
-      - name: install conftest
-        run: |
-          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin conftest
-
-      - name: terraform plan
-        working-directory: ${{ matrix.service }}
-        run: |
-          terraform plan \
-            -var-file="environments/${{ inputs.environment }}/terraform.tfvars" \
-            -out=tfplan
+      - name: Apply layer
+        run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }}
         env:
           TF_VAR_auth_jwt_secret:         ${{ secrets.TF_VAR_AUTH_JWT_SECRET }}
           TF_VAR_auth_jwt_refresh_secret: ${{ secrets.TF_VAR_AUTH_JWT_REFRESH_SECRET }}
           TF_VAR_keycloak_jwks_url:       ${{ secrets.TF_VAR_KEYCLOAK_JWKS_URL }}
           TF_VAR_gateway_jwt_secret:      ${{ secrets.TF_VAR_GATEWAY_JWT_SECRET }}
           TF_VAR_stripe_api_key:          ${{ secrets.TF_VAR_STRIPE_API_KEY }}
-
-      - name: conftest (Policy as Code — gate before apply)
-        working-directory: ${{ matrix.service }}
-        run: |
-          terraform show -json tfplan > tfplan.json
-          conftest test tfplan.json -p ${{ github.workspace }}/policy/terraform
-
-      - name: terraform apply
-        working-directory: ${{ matrix.service }}
-        run: terraform apply -auto-approve tfplan

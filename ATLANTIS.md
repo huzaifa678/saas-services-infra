@@ -186,6 +186,17 @@ TF_VAR_stripe_api_key
 > All projects share one server env, so plans/applies see every `TF_VAR_*`.
 > Terraform ignores ones a given module doesn't declare.
 
+Cost estimation (Infracost):
+```
+INFRACOST_API_KEY   # free key from `infracost auth login` — self-hosted, no plan data leaves via us
+```
+
+> The `terragrunt` plan workflow runs `infracost breakdown` on `$SHOWFILE` after
+> every plan and appends the cost table to the plan comment. It is **informational
+> only** — the step swallows its own errors (`|| echo …`), so a layer with no
+> billable resources (e.g. `50-addons-helm`) or a missing key never blocks a plan
+> or apply. `infracost` must be on the server `PATH` (add it to the image if not).
+
 ---
 
 ## AWS access
@@ -210,7 +221,8 @@ via `use_lockfile = true`).
 2. Mount the `TF_VAR_*` secrets into the pod env (External Secrets → envFrom).
 3. Mount this repo's `policy/terraform/` read-only at
    `/etc/atlantis/policies/terraform` (git-sync sidecar / projected volume), and
-   confirm `conftest` is on the pod `PATH`.
+   confirm `conftest` **and `infracost`** are on the pod `PATH`; export
+   `INFRACOST_API_KEY` into the pod env (External Secrets → envFrom).
 4. Attach the IAM role (IRSA / instance role).
 5. Add a GitHub **webhook** → `https://<atlantis-host>/events`, content type
    `application/json`, events: *Pull requests*, *Pushes*, *Issue comments*,
