@@ -1,0 +1,6 @@
+repos:
+  - id: github.com/huzaifa678/saas-services-infra
+    allowed_overrides:
+      - workflow
+    allow_custom_workflows: true
+    
