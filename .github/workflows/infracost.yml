@@ -45,7 +45,7 @@ jobs:
             "https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
           sudo chmod +x /usr/local/bin/terragrunt
 
-      - uses: infracost/actions/setup@v3
+      - uses: infracost/actions/setup@v4
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
