@@ -40,3 +40,39 @@ output "keycloak_db_endpoint" {
   description = "Keycloak database endpoint, or empty when auth_provider is not keycloak."
   value       = try(module.rds["keycloak"].endpoint, "")
 }
+
+output "airflow_db_endpoint" {
+  description = "Airflow metadata database endpoint."
+  value       = try(module.rds["airflow"].endpoint, "")
+}
+
+# ─── GitOps contract ─────────────────────────────────────────────────────────
+# The single machine-readable handoff from this Terraform layer to the CD repo.
+# The CD repo's scripts/render_gitops.py consumes `terraform output -json
+# gitops_contract` and renders the Crossplane provider-sql blocks + per-app
+# values, so instance/secret names are never hand-kept in sync again.
+# Schema is documented in docs/gitops-contract.md.
+output "gitops_contract" {
+  description = "Infra -> GitOps contract consumed by the CD repo renderer."
+  sensitive   = true
+  value = {
+    version = 1
+    databases = {
+      for k, m in module.rds : k => {
+        instance    = k
+        endpoint    = m.endpoint
+        db_name     = m.db_name
+        username    = m.username
+        secret_name = "${local.databases[k].name}-secret"
+      }
+    }
+    redis = {
+      endpoint        = module.elasticache.primary_endpoint
+      port            = module.elasticache.port
+      auth_secret_arn = module.elasticache.auth_token_secret_arn
+    }
+    kafka = {
+      bootstrap_brokers = module.msk.bootstrap_brokers
+    }
+  }
+}
