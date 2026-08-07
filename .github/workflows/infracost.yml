@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  TERRAGRUNT_VERSION: v0.69.9
+  TERRAGRUNT_VERSION: v1.1.0
   # 50-addons-helm is omitted: it holds no billable AWS resources and its
   # helm/kubernetes providers need a live cluster to plan.
   LAYERS: "00-network 10-platform 20-data 30-edge 40-observability"

@@ -22,7 +22,7 @@ permissions:
 env:
   TFLINT_VERSION: v0.61.0
   CONFTEST_VERSION: 0.56.0
-  TERRAGRUNT_VERSION: v0.69.9
+  TERRAGRUNT_VERSION: v1.1.0
 
 jobs:
   # ── Hermetic gates: no cloud creds, run on every PR (incl. forks) ───────────
