@@ -83,6 +83,12 @@ variable "keycloak_db_password" {
   sensitive = true
 }
 
+variable "airflow_db_password" {
+  type      = string
+  default   = null
+  sensitive = true
+}
+
 # ── Inputs supplied by Terragrunt dependency blocks ──────────────────────────
 # From 00-network:
 variable "cluster_name" { type = string }
