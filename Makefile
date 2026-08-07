@@ -24,7 +24,7 @@ fmt:
 .PHONY: fmt-check
 fmt-check: 
 	terraform fmt -recursive -check -diff
-	terragrunt hclfmt --check --diff
+	terragrunt hcl format --check --diff
 
 .PHONY: validate
 validate: 
