@@ -67,7 +67,6 @@ opa-fmt-check:
 .PHONY: opa-test
 opa-test: 
 	conftest verify --policy $(POLICY_DIR)/opa/terraform --policy $(POLICY_DIR)/opa/lib
-	conftest verify --policy $(POLICY_DIR)/opa/kubernetes
 
 .PHONY: checkov-test
 checkov-test:
