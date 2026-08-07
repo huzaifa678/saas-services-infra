@@ -3,9 +3,23 @@ updates:
   - package-ecosystem: "terraform"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    rebase-strategy: "disabled"
+    groups:
+      terraform:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    rebase-strategy: "disabled"
+    groups:
+      github-actions:
+        patterns: ["*"]
