@@ -60,6 +60,16 @@ jobs:
           TF_VAR_ava_oidc_client_id:         ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_ID }}
           TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}
 
+      # Publish the GitOps contract for the CD repo's renderer to consume.
+      - name: Publish GitOps contract to SSM
+        if: ${{ inputs.layer == '20-data' }}
+        run: |
+          CONTRACT=$(terraform output -json gitops_contract)
+          aws ssm put-parameter \
+            --name "/saas/${{ inputs.environment }}/gitops-contract" \
+            --type SecureString --tier Intelligent-Tiering --overwrite \
+            --value "$CONTRACT"
+
       - name: capture ECR outputs
         id: outputs
         run: |

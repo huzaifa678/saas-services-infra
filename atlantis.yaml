@@ -299,3 +299,17 @@ workflows:
     apply:
       steps:
         - run: terragrunt apply $PLANFILE
+        # Publish the GitOps contract to SSM after a 20-data apply so the CD
+        # repo's renderer can fetch it. No-op for every other layer.
+        - run: |
+            case "$PROJECT_NAME" in
+              20-data-*)
+                ENVN="${PROJECT_NAME#20-data-}"
+                CONTRACT=$(terragrunt output -json gitops_contract)
+                aws ssm put-parameter \
+                  --name "/saas/${ENVN}/gitops-contract" \
+                  --type SecureString --tier Intelligent-Tiering --overwrite \
+                  --value "$CONTRACT" ;;
+              *)
+                echo "no gitops contract for $PROJECT_NAME" ;;
+            esac
