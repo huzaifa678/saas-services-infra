@@ -74,18 +74,9 @@ variable "ava_oidc_issuer" {
   default     = ""
 }
 
-variable "ava_oidc_client_id" {
-  description = "OIDC client id for the Verified Access trust provider."
-  type        = string
-  default     = ""
-}
-
-variable "ava_oidc_client_secret" {
-  description = "OIDC client secret for the Verified Access trust provider."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
+# ava_oidc_client_id / ava_oidc_client_secret are no longer variables — they are
+# read from the Secrets Manager secret "saas/<env>/auth0" (see main.tf local.auth0),
+# so no OIDC credential is passed from CI.
 
 variable "ava_policy_document" {
   description = <<-EOT

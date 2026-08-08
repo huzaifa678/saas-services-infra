@@ -53,16 +53,9 @@ variable "observability" {
   default     = "elk"
 }
 
-variable "opensearch_master_username" {
-  type      = string
-  default   = "admin"
-  sensitive = true
-}
-
-variable "opensearch_master_password" {
-  type      = string
-  sensitive = true
-}
+# opensearch_master_username / opensearch_master_password are read from the
+# Secrets Manager secret "saas/<env>/opensearch-master" (see main.tf local.opensearch),
+# not passed from CI.
 
 # ── Inputs supplied by Terragrunt dependency blocks ──────────────────────────
 # From 00-network:

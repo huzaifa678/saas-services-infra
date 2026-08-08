@@ -21,6 +21,18 @@ module "guardrails" {
   observability               = var.observability
 }
 
+# The OpenSearch (ELK) master credentials are seeded out-of-band into Secrets
+# Manager as JSON {username, password} — never passed from CI. Only read for the
+# elk stack (the grafana stack builds no OpenSearch domain).
+data "aws_secretsmanager_secret_version" "opensearch" {
+  count     = var.observability == "elk" ? 1 : 0
+  secret_id = "saas/${var.environment}/opensearch-master"
+}
+
+locals {
+  opensearch = var.observability == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
+}
+
 # Pure AWS: managed Grafana / Prometheus workspaces, the OpenSearch domain, and
 # the IAM roles the OTel collector assumes. The collector's Kubernetes objects
 # live in 50-addons-helm, which is the only layer holding cluster credentials.
@@ -34,6 +46,6 @@ module "observability" {
   subnet_ids       = var.private_subnets
   opensearch_sg_id = var.opensearch_sg_id
 
-  opensearch_master_username = var.opensearch_master_username
-  opensearch_master_password = var.opensearch_master_password
+  opensearch_master_username = local.opensearch.username
+  opensearch_master_password = local.opensearch.password
 }

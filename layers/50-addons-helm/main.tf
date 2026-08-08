@@ -34,6 +34,18 @@ module "guardrails" {
   observability               = var.observability
 }
 
+# OpenSearch (ELK) master credentials — same out-of-band Secrets Manager secret
+# the observability layer reads (the OTel collector connects with them). Never
+# passed from CI; only present for the elk stack.
+data "aws_secretsmanager_secret_version" "opensearch" {
+  count     = var.observability == "elk" ? 1 : 0
+  secret_id = "saas/${var.environment}/opensearch-master"
+}
+
+locals {
+  opensearch = var.observability == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
+}
+
 # modules/otel is a sibling of modules/k8s-and-helm, so it does not inherit the
 # provider configuration declared inside that module. The cluster-facing providers
 # are therefore configured here, at the root.
@@ -108,8 +120,8 @@ module "otel" {
   prometheus_endpoint          = var.prometheus_endpoint
   opensearch_endpoint          = var.opensearch_endpoint
 
-  opensearch_username = var.opensearch_master_username
-  opensearch_password = var.opensearch_master_password
+  opensearch_username = local.opensearch.username
+  opensearch_password = local.opensearch.password
 
   region        = var.region
   observability = var.observability

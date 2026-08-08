@@ -31,6 +31,16 @@ locals {
   # The `cidr` endpoint forwards to an address range, so it must contain the
   # subnets holding the private EKS API ENIs. Defaults to the whole VPC.
   eks_api_cidr = coalesce(var.eks_api_cidr, var.vpc_cidr)
+
+  # Auth0 OIDC creds for the Verified Access trust provider are seeded out-of-band
+  # into Secrets Manager as JSON {client_id, client_secret} — never passed from CI.
+  # Only read where the AVA plane is built (prod); dev has no secret to read.
+  auth0 = local.ava_enabled ? jsondecode(data.aws_secretsmanager_secret_version.auth0[0].secret_string) : { client_id = "", client_secret = "" }
+}
+
+data "aws_secretsmanager_secret_version" "auth0" {
+  count     = local.ava_enabled ? 1 : 0
+  secret_id = "saas/${var.environment}/auth0"
 }
 
 module "verified_access" {
@@ -49,8 +59,8 @@ module "verified_access" {
   cidr_endpoints_custom_subdomain = var.ava_custom_subdomain
 
   oidc_issuer        = var.ava_oidc_issuer
-  oidc_client_id     = var.ava_oidc_client_id
-  oidc_client_secret = var.ava_oidc_client_secret
+  oidc_client_id     = local.auth0.client_id
+  oidc_client_secret = local.auth0.client_secret
   policy_document    = var.ava_policy_document
 
   logging_enabled           = local.security.verified_access_logging
