@@ -17,5 +17,6 @@ dependency "data" {
 }
 
 inputs = {
+  environment        = local.env
   auth_db_secret_arn = dependency.data.outputs.db_secret_arns["auth"]
 }

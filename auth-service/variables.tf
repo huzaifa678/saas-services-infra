@@ -3,15 +3,9 @@ variable "region" {
   default = "us-east-1"
 }
 
-
-variable "auth_jwt_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "auth_jwt_refresh_secret" {
-  type      = string
-  sensitive = true
+variable "environment" {
+  type        = string
+  description = "dev | test | prod. Namespaces the Secrets Manager lookups (saas/<env>/*)."
 }
 
 # ── Input from the platform data layer (20-data) via Terragrunt dependency ────

@@ -25,6 +25,7 @@ dependency "data" {
 }
 
 inputs = {
+  environment             = local.env
   billing_db_secret_arn   = dependency.data.outputs.db_secret_arns["billing"]
   redis_endpoint          = dependency.data.outputs.redis_endpoint
   kafka_bootstrap_brokers = dependency.data.outputs.msk_bootstrap_brokers

@@ -2,6 +2,10 @@ data "aws_secretsmanager_secret_version" "billing_db" {
   secret_id = var.billing_db_secret_arn
 }
 
+data "aws_secretsmanager_secret_version" "stripe" {
+  secret_id = "saas/${var.environment}/stripe-api-key"
+}
+
 resource "aws_secretsmanager_secret" "billing_service" {
   name                    = "saas/billing-service"
   recovery_window_in_days = 7
@@ -17,6 +21,6 @@ resource "aws_secretsmanager_secret_version" "billing_service" {
     SPRING_DATA_REDIS_PORT         = "6379"
     SPRING_KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_brokers
     SCHEMA_REGISTRY_ARN            = var.schema_registry_arn
-    STRIPE_API_KEY                 = var.stripe_api_key
+    STRIPE_API_KEY                 = data.aws_secretsmanager_secret_version.stripe.secret_string
   })
 }
