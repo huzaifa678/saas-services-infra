@@ -12,13 +12,17 @@
 
 `in-development` `terraform` `aws-infrastructure` `eks` `saas` `microservices`
 
-Terraform infrastructure for a multi-service SaaS platform on AWS. Provisions a full EKS-based environment with managed databases, messaging, observability, and auth — across `dev`, `staging`, and `prod` environments.
+Terraform + **Terragrunt** infrastructure for a multi-service SaaS platform on AWS. Provisions a full EKS-based environment with managed databases, messaging, observability, and auth — across `dev`, `test`, and `prod` environments, delivered keylessly via GitHub Actions OIDC.
 
 ---
 
 ## Architecture Overview
 
-![Alt text](architecture.png)
+![SaaS services infrastructure — runtime architecture and Terragrunt delivery](architecture.png)
+
+Delivered as **Terragrunt layers** (`live/<env>/00-network → 50-addons-helm`) sourcing the
+modules in `layers/`, applied by GitHub Actions via keyless AWS **OIDC**. Application secrets
+are generated (DB) or read from **Secrets Manager** — none are passed from CI.
 
 **Services deployed to EKS:**
 - `api-gateway` — JWT validation, rate limiting, Redis-backed session
@@ -31,26 +35,37 @@ Terraform infrastructure for a multi-service SaaS platform on AWS. Provisions a 
 
 ## Modules
 
+Reusable building blocks in `modules/`, composed by the layers in `layers/`:
+
 | Module | Description |
 |--------|-------------|
-| `modules/eks` | EKS cluster, node group, IRSA roles, security groups, AWS Verified Access |
+| `modules/guardrails` | Per-environment security posture + tags (the `sizing`/`auth_provider`/`observability` policy engine every layer consumes) |
+| `modules/eks` | EKS cluster, node group, IRSA roles |
+| `modules/node-security-group` / `modules/data-security-groups` | Node + data-tier security groups |
+| `modules/verified-access` | AWS Verified Access (Zero-Trust EKS API front door, prod) |
 | `modules/k8s-and-helm` | Helm releases: NGINX Gateway, cert-manager, external-dns, ArgoCD, Airflow, Keycloak |
-| `modules/rds` | PostgreSQL RDS instances (one per service) |
+| `modules/rds` | PostgreSQL RDS instances (one per service); generates the master password → Secrets Manager |
 | `modules/elasticache` | Redis ElastiCache cluster |
-| `modules/kafka` | Amazon MSK (Kafka) + Glue Schema Registry |
+| `modules/msk` | Amazon MSK (Kafka) |
 | `modules/elk` | OpenSearch domain + IRSA for OTel collector |
 | `modules/grafana` | Amazon Managed Grafana + Managed Prometheus |
+| `modules/observability` | Observability facade — picks `elk` or `grafana` per env |
 | `modules/otel` | OpenTelemetry Collector (K8s DaemonSet) |
+| `modules/iam` | Shared IAM (VPC flow-log role, etc.) |
 
 ---
 
 ## Environments
 
-| Environment | Config | Auth | Observability | EKS Access |
-|-------------|--------|------|---------------|------------|
-| `dev` | `dev.tfvars` | Custom auth-service | Grafana | Public endpoint |
-| `staging` | `stage.tfvars` | Keycloak | ELK | Private |
-| `prod` | `prod.tfvars` | Keycloak + Auth0 OIDC | ELK | Private + AWS Verified Access |
+Infrastructure is delivered with **Terragrunt** (env-by-directory). Each environment is a
+directory under `live/<env>/` holding one thin unit per layer; shared identity lives in
+`live/<env>/env.hcl` and the DRY backend/provider generation in `root.hcl`.
+
+| Environment | Live tree | Auth | Observability | EKS Access |
+|-------------|-----------|------|---------------|------------|
+| `dev` | `live/dev/` | Custom auth-service | Grafana | Public endpoint (CIDR-allowlisted) |
+| `test` | `live/test/` | Keycloak | ELK | Public endpoint (CIDR-allowlisted) |
+| `prod` | `live/prod/` | Keycloak + Auth0 OIDC | ELK | Private + AWS Verified Access |
 
 ### Auth Providers
 
@@ -70,52 +85,40 @@ Switchable via `observability`:
 
 ## Prerequisites
 
-- Terraform `>= 1.3.0`
+- Terraform `>= 1.3.0` (CI pins `~1.14.8`)
+- Terragrunt `v1.1.0` (installed by CI via `.github/actions/setup-terragrunt`)
 - AWS CLI configured with appropriate permissions
-- `kubectl` and `helm` (for K8s module)
-- S3 bucket `saas-state-bucket-399849` (remote state backend)
+- `kubectl` and `helm` (for the addons/K8s layer)
+- S3 bucket `saas-state-bucket-399849` (remote state backend, native S3 locking)
 
 ---
 
 ## Usage
 
-```bash
-# Initialize
-terraform init
-
-# Plan for a specific environment
-terraform plan -var-file=dev.tfvars
-
-# Apply
-terraform apply -var-file=dev.tfvars
-
-# Prod (with Verified Access)
-terraform apply -var-file=prod.tfvars
-```
-
-### Sensitive Variables
-
-Never commit secrets. Pass them via environment variables:
+Everything runs through the `Makefile`, which wraps Terragrunt. The layer numbers
+encode apply order (`00-network` → `50-addons-helm`); services live in `live/services/`.
 
 ```bash
-export TF_VAR_auth_db_password="..."
-export TF_VAR_subscription_db_password="..."
-export TF_VAR_billing_db_password="..."
-export TF_VAR_usage_db_password="..."
-export TF_VAR_opensearch_master_password="..."
-export TF_VAR_stripe_api_key="..."
-export TF_VAR_openai_api_key="..."
+# Plan / apply one layer in one env
+make plan  ENV=dev LAYER=00-network
+make apply ENV=dev LAYER=00-network
 
-# Keycloak (prod)
-export TF_VAR_keycloak_db_password="..."
-export TF_VAR_ava_oidc_client_secret="..."
-export TF_VAR_auth0_client_secret="..."
+# Whole stack, dependency-ordered
+make plan-all  ENV=prod
+make apply-all ENV=prod
 
-# Auth-service (dev)
-export TF_VAR_auth_jwt_secret="..."
-export TF_VAR_auth_jwt_refresh_secret="..."
-export TF_VAR_gateway_jwt_secret="..."
+# A single service (live/services/<env>/<svc>)
+make svc-plan  ENV=test SERVICE=api-gateway
+make svc-apply ENV=test SERVICE=api-gateway
+
+# HCL-only checks (no cloud): fmt + render every unit with mocks
+make fmt-check
+make tg-render
+make svc-render
 ```
+
+CI never applies from a laptop for shared envs — see the workflows below. Secrets are
+**not** passed on the command line; see [Secrets](#secrets--no-secret-is-passed-from-cigithub).
 
 ---
 
@@ -142,6 +145,39 @@ The following ECR repositories are provisioned with KMS encryption and immutable
 - VPC Flow Logs → CloudWatch
 - EKS control plane logs: `api`, `audit`, `authenticator`, `controllerManager`, `scheduler`
 - Prod: private EKS API endpoint + AWS Verified Access (Zero Trust)
+
+### Secrets — no secret is passed from CI/GitHub
+
+Terraform receives **zero** application secrets as `TF_VAR_*` from GitHub. Two patterns:
+
+- **Database master passwords** are *generated* by `modules/rds` (`password = null` in
+  `layers/20-data`) and written to Secrets Manager as `{username,password,endpoint,db_name}`;
+  the service roots read them back by ARN. No human ever handles them.
+- **Third-party / app secrets** are seeded **out-of-band** into Secrets Manager and *read*
+  by the config via `data "aws_secretsmanager_secret_version"`. The deploy role
+  (`AWS_DEPLOY_ROLE_ARN`) needs `secretsmanager:GetSecretValue` (it has it — Admin).
+
+| Secret (Secrets Manager id)     | Shape                              | Read by |
+| ------------------------------- | ---------------------------------- | ------- |
+| `saas/<env>/stripe-api-key`     | plain string                       | billing-service |
+| `saas/<env>/auth-jwt`           | `{secret, refresh_secret}`         | auth-service |
+| `saas/<env>/opensearch-master`  | `{username, password}`             | 40-observability, 50-addons-helm (elk only) |
+| `saas/<env>/auth0`              | `{client_id, client_secret}`       | 30-edge (Verified Access, prod only) |
+| `saas/api-gateway-input`        | `{JWT_SECRET}` (pre-existing)      | api-gateway |
+
+Seed them once per environment from your local (gitignored) `secrets.<env>.env`:
+
+```bash
+./scripts/seed-secrets.sh prod      # create-or-update; values never printed
+```
+
+After seeding, **delete these repo/environment GitHub secrets** (now unused):
+`TF_VAR_KEYCLOAK_DB_PASSWORD`, `TF_VAR_SUBSCRIPTION_DB_PASSWORD`, `TF_VAR_BILLING_DB_PASSWORD`,
+`TF_VAR_USAGE_DB_PASSWORD`, `TF_VAR_AUTH_DB_PASSWORD`, `TF_VAR_OPENSEARCH_MASTER_PASSWORD`,
+`TF_VAR_OPENAI_API_KEY` (was undeclared — silently ignored), `TF_VAR_AVA_OIDC_CLIENT_ID`,
+`TF_VAR_AVA_OIDC_CLIENT_SECRET`, `TF_VAR_AUTH_JWT_SECRET`, `TF_VAR_AUTH_JWT_REFRESH_SECRET`,
+`TF_VAR_KEYCLOAK_JWKS_URL`, `TF_VAR_GATEWAY_JWT_SECRET`, `TF_VAR_STRIPE_API_KEY`.
+Only `AWS_DEPLOY_ROLE_ARN` and `INFRACOST_API_KEY` remain.
 
 ---
 
@@ -214,47 +250,54 @@ backend "s3" {
 - [x] CI/CD pipeline integration
 - [x] Cost estimation on PRs (Infracost — CI + Atlantis)
 - [ ] Disaster recovery / backup policies
-- [ ] Secure password protection for RDS
-- [ ] Loose coupling of services credentials from remote backend s3 of the main infra
+- [x] Secure password protection for RDS (generated by `modules/rds` → Secrets Manager; never in CI)
+- [x] Loose coupling of service credentials from the infra state (secrets read from Secrets Manager, `saas/<env>/*`)
 
 ---
 
 ## Repository Structure
 
+Terragrunt drives everything: `layers/` and the service dirs are the **source modules**;
+`live/<env>/` are the thin per-environment units that set `inputs` and are wired together
+by dependency blocks. `root.hcl` generates the S3 backend + base AWS provider for all units.
+
 ```
 .
-├── api-gateway/             # API Gateway service Terraform workspace
-│   └── environments/        # Per-environment config for api-gateway
-├── auth-service/            # Auth service Terraform workspace
-│   └── environments/        # Per-environment config for auth-service
-├── billing-service/         # Billing service Terraform workspace
-│   └── environments/        # Per-environment config for billing-service
-├── subscription-service/    # Subscription service Terraform workspace
-│   └── environments/        # Per-environment config for subscription-service
-├── environments/            # Root environment configs for the full stack
-├── main.tf                  # Root module — VPC, EKS, RDS, MSK, Redis, secrets
-├── variables.tf
-├── outputs.tf
-├── provider.tf              # AWS provider + S3 backend
-├── local.tf                 # Locals (subnets, observability map, service list)
-├── ecr.tf                   # ECR repositories
-├── kms.tf                   # KMS key
-├── iam.tf                   # VPC flow log IAM role
-├── cloud-watch.tf           # CloudWatch log group
-├── schema-registry.tf       # Glue Schema Registry
-├── dev.tfvars
-├── stage.tfvars
-├── prod.tfvars
-├── secrets.dev.env
-├── secrets.prod.env
-├── modules/
-│   ├── eks/                 # EKS cluster, nodes, IRSA, security groups, Verified Access
-│   ├── k8s-and-helm/        # Helm: NGINX, cert-manager, external-dns, ArgoCD, Keycloak, Airflow
-│   ├── rds/                 # PostgreSQL RDS
-│   ├── elasticache/         # Redis
-│   ├── kafka/               # MSK
-│   ├── elk/                 # OpenSearch
-│   ├── grafana/             # Managed Grafana + Managed Prometheus
-│   └── otel/                # OpenTelemetry Collector
-└── tfplan                   # Local Terraform plan file
+├── root.hcl                     # DRY core: remote_state (S3 + lock) + generated aws provider
+├── Makefile                     # plan/apply/render/fmt wrappers over terragrunt
+│
+├── layers/                      # Source modules, numbered by apply order
+│   ├── 00-network/              # VPC, subnets, NAT, Route53, Glue Schema Registry
+│   ├── 10-platform/             # EKS cluster + node groups
+│   ├── 20-data/                 # RDS (per service), ElastiCache Redis, MSK Kafka
+│   ├── 30-edge/                 # NLB + AWS Verified Access (prod Zero-Trust)
+│   ├── 40-observability/        # OpenSearch (elk) / Managed Grafana+Prometheus
+│   └── 50-addons-helm/          # Helm addons: NGINX, ArgoCD, Keycloak, OTel, ...
+│
+├── live/                        # Terragrunt units (env-by-directory)
+│   ├── _envcommon/              # Shared per-layer config (deps, mock_outputs)
+│   ├── dev/  test/  prod/       # <env>/<layer>/terragrunt.hcl  (+ env.hcl)
+│   └── services/                # App services, per env
+│       ├── _envcommon/          # Shared per-service config
+│       └── test/  prod/         # <env>/<service>/terragrunt.hcl
+│
+├── api-gateway/  auth-service/  # Service source modules (ECS/EKS task config +
+│   billing-service/  subscription-service/   Secrets Manager reads)
+│
+├── modules/                     # Reusable modules (see Modules table)
+│
+├── policy/                      # Policy-as-Code
+│   ├── opa/  terraform/         # Rego (Conftest) — plan-level guardrails
+│   └── checkov/                 # Custom Checkov checks
+│
+├── .github/
+│   ├── workflows/               # infra, infra-validate, infracost, dependabot-auto-merge
+│   └── actions/setup-terragrunt # Pinned terragrunt installer
+│
+├── atlantis/  atlantis.yaml     # Atlantis (enforced apply gate) config
+├── migration/                   # One-shot scripts that moved the flat root → layers
+├── scripts/                     # seed-secrets.sh, apply-stepwise.sh, verify-apply.sh
+├── secrets.dev.env  secrets.prod.env   # gitignored — local source for seed-secrets.sh
+├── architecture.svg / .png      # Architecture + Terragrunt delivery diagram (SVG = editable source)
+└── graph.png                    # Terraform dependency graph
 ```
