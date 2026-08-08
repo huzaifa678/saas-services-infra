@@ -62,14 +62,6 @@ jobs:
               --format json \
               --out-file "/tmp/infracost/$layer.json"
           done
-        env:
-          TF_VAR_keycloak_db_password:       ${{ secrets.TF_VAR_KEYCLOAK_DB_PASSWORD }}
-          TF_VAR_subscription_db_password:   ${{ secrets.TF_VAR_SUBSCRIPTION_DB_PASSWORD }}
-          TF_VAR_billing_db_password:        ${{ secrets.TF_VAR_BILLING_DB_PASSWORD }}
-          TF_VAR_usage_db_password:          ${{ secrets.TF_VAR_USAGE_DB_PASSWORD }}
-          TF_VAR_auth_db_password:           ${{ secrets.TF_VAR_AUTH_DB_PASSWORD }}
-          TF_VAR_opensearch_master_password: ${{ secrets.TF_VAR_OPENSEARCH_MASTER_PASSWORD }}
-          TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}
 
       - name: post cost comment
         run: |

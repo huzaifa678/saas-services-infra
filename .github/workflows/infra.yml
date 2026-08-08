@@ -49,16 +49,6 @@ jobs:
 
       - name: Apply layer
         run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }}
-        env:
-          TF_VAR_keycloak_db_password:       ${{ secrets.TF_VAR_KEYCLOAK_DB_PASSWORD }}
-          TF_VAR_subscription_db_password:   ${{ secrets.TF_VAR_SUBSCRIPTION_DB_PASSWORD }}
-          TF_VAR_billing_db_password:        ${{ secrets.TF_VAR_BILLING_DB_PASSWORD }}
-          TF_VAR_usage_db_password:          ${{ secrets.TF_VAR_USAGE_DB_PASSWORD }}
-          TF_VAR_auth_db_password:           ${{ secrets.TF_VAR_AUTH_DB_PASSWORD }}
-          TF_VAR_opensearch_master_password: ${{ secrets.TF_VAR_OPENSEARCH_MASTER_PASSWORD }}
-          TF_VAR_openai_api_key:             ${{ secrets.TF_VAR_OPENAI_API_KEY }}
-          TF_VAR_ava_oidc_client_id:         ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_ID }}
-          TF_VAR_ava_oidc_client_secret:     ${{ secrets.TF_VAR_AVA_OIDC_CLIENT_SECRET }}
 
       # Publish the GitOps contract for the CD repo's renderer to consume.
       - name: Publish GitOps contract to SSM
@@ -109,9 +99,3 @@ jobs:
 
       - name: Apply layer
         run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }}
-        env:
-          TF_VAR_auth_jwt_secret:         ${{ secrets.TF_VAR_AUTH_JWT_SECRET }}
-          TF_VAR_auth_jwt_refresh_secret: ${{ secrets.TF_VAR_AUTH_JWT_REFRESH_SECRET }}
-          TF_VAR_keycloak_jwks_url:       ${{ secrets.TF_VAR_KEYCLOAK_JWKS_URL }}
-          TF_VAR_gateway_jwt_secret:      ${{ secrets.TF_VAR_GATEWAY_JWT_SECRET }}
-          TF_VAR_stripe_api_key:          ${{ secrets.TF_VAR_STRIPE_API_KEY }}
