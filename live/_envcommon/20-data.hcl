@@ -4,18 +4,18 @@ terraform {
 
 dependency "network" {
   config_path                             = "../00-network"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
     cluster_name    = "saas-eks-mock"
     vpc_id          = "vpc-mock"
-    private_subnets = ["subnet-mock-a", "subnet-mock-b"]
+    private_subnets = ["subnet-mock-a", "subnet-mock-b", "subnet-mock-c"]
     kms_key_arn     = "arn:aws:kms:us-east-1:000000000000:key/mock"
   }
 }
 
 dependency "platform" {
   config_path                             = "../10-platform"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
     eks_nodes_sg_id = "sg-mock"
   }

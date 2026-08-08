@@ -4,15 +4,15 @@ terraform {
 
 dependency "network" {
   config_path                             = "../00-network"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
-    private_subnets = ["subnet-mock-a", "subnet-mock-b"]
+    private_subnets = ["subnet-mock-a", "subnet-mock-b", "subnet-mock-c"]
   }
 }
 
 dependency "platform" {
   config_path                             = "../10-platform"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
     oidc_provider_arn = "arn:aws:iam::000000000000:oidc-provider/mock"
     oidc_issuer       = "https://oidc.eks.us-east-1.amazonaws.com/id/MOCK"
@@ -21,7 +21,7 @@ dependency "platform" {
 
 dependency "data" {
   config_path                             = "../20-data"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
     opensearch_sg_id = "sg-mock"
   }
