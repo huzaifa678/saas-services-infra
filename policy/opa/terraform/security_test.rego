@@ -71,6 +71,20 @@ test_ava_endpoint_world_open_exempt if {
 	count(deny) == 0 with input as plan([rc("aws_vpc_security_group_ingress_rule", after)])
 }
 
+# The standalone ava_https ingress rule has no Name tag; it is exempted by its
+# authored AVA description instead.
+test_ava_endpoint_exempt_by_description if {
+	after := {"cidr_ipv4": "0.0.0.0/0", "from_port": 443, "description": "HTTPS from internet, terminated and authenticated by AVA"}
+	count(deny) == 0 with input as plan([rc("aws_vpc_security_group_ingress_rule", after)])
+}
+
+# A world-open rule that merely mentions AVA on a non-443 port is NOT exempt.
+test_non_ava_world_open_still_denied if {
+	after := {"cidr_ipv4": "0.0.0.0/0", "from_port": 22, "description": "ssh, authenticated by AVA"}
+	some msg in deny with input as plan([rc("aws_vpc_security_group_ingress_rule", after)])
+	contains(msg, "0.0.0.0/0")
+}
+
 test_iam_star_star_denied if {
 	policy := json.marshal({"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]})
 	some msg in deny with input as plan([rc("aws_iam_role_policy", {"policy": policy})])

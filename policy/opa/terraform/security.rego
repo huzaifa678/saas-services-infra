@@ -70,10 +70,18 @@ deny contains msg if {
 # --- Security groups: admin/data ports open to the world --------------------
 #
 # The Verified Access endpoint SG is the one legitimate 0.0.0.0/0:443 ingress --
-# it terminates and authenticates every request. It is exempted by tag, not by
-# turning the rule off.
+# it terminates and authenticates every request. It is exempted by an explicit,
+# authored signal, not by turning the rule off: either the endpoint SG's Name tag
+# (`*-ava-endpoint-sg`) or the ingress rule's AVA description. Standalone ingress
+# rules carry no Name tag, so the description is what exempts `ava_https`. Every
+# other world-open ingress still denies.
 
-is_ava_endpoint(rc) if endswith(rc.change.after.tags.Name, "-ava-endpoint-sg")
+is_ava_endpoint(rc) if endswith(object.get(object.get(rc.change.after, "tags", {}), "Name", ""), "-ava-endpoint-sg")
+
+is_ava_endpoint(rc) if {
+	rc.change.after.from_port == 443
+	contains(object.get(rc.change.after, "description", ""), "authenticated by AVA")
+}
 
 deny contains msg if {
 	some rc in tfplan.resources("aws_vpc_security_group_ingress_rule")
