@@ -17,14 +17,16 @@ dependency "platform" {
   config_path                             = "../10-platform"
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
-    eks_nodes_sg_id = "sg-mock"
+    eks_nodes_sg_id                   = "sg-mock"
+    karpenter_interruption_queue_name = "saas-eks-mock-karpenter-interruption"
   }
 }
 
 inputs = {
-  cluster_name    = dependency.network.outputs.cluster_name
-  vpc_id          = dependency.network.outputs.vpc_id
-  private_subnets = dependency.network.outputs.private_subnets
-  kms_key_arn     = dependency.network.outputs.kms_key_arn
-  eks_nodes_sg_id = dependency.platform.outputs.eks_nodes_sg_id
+  cluster_name                      = dependency.network.outputs.cluster_name
+  vpc_id                            = dependency.network.outputs.vpc_id
+  private_subnets                   = dependency.network.outputs.private_subnets
+  kms_key_arn                       = dependency.network.outputs.kms_key_arn
+  eks_nodes_sg_id                   = dependency.platform.outputs.eks_nodes_sg_id
+  karpenter_interruption_queue_name = dependency.platform.outputs.karpenter_interruption_queue_name
 }

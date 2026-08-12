@@ -69,3 +69,8 @@ variable "eks_nodes_sg_id" {
   description = "EKS node SG; the sole permitted ingress source for the data tier."
   type        = string
 }
+variable "karpenter_interruption_queue_name" {
+  description = "SQS interruption queue name; surfaced to the CD repo via the gitops_contract cluster block."
+  type        = string
+  default     = ""
+}
