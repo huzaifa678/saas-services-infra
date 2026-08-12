@@ -57,6 +57,11 @@ output "gitops_contract" {
   sensitive   = true
   value = {
     version = 1
+    cluster = {
+      name                         = var.cluster_name
+      region                       = var.region
+      karpenter_interruption_queue = var.karpenter_interruption_queue_name
+    }
     databases = {
       for k, m in module.rds : k => {
         instance    = k

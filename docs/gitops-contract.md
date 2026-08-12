@@ -23,6 +23,11 @@ CI (Atlantis) exports this after apply and hands it to the CD renderer.
 ```jsonc
 {
   "version": 1,
+  "cluster": {
+    "name": "saas-eks-<env>",                 // EKS cluster name (karpenter/aws-lb clusterName)
+    "region": "us-east-1",
+    "karpenter_interruption_queue": "saas-eks-<env>-karpenter-interruption"
+  },
   "databases": {
     "<instance>": {                 // auth | billing | subscription | usage | keycloak | airflow
       "instance": "<instance>",
@@ -46,6 +51,9 @@ CI (Atlantis) exports this after apply and hands it to the CD renderer.
 ## Rules
 
 - `version` is bumped on any breaking shape change; the renderer pins the major.
+- `cluster.karpenter_interruption_queue` is `modules/iam`'s
+  `${cluster_name}-karpenter-interruption`; the CD renderer injects it (and
+  `cluster.name`) into the karpenter/aws-lb addon overlays.
 - `databases` keys are exactly the RDS instances Terraform created for the
   environment (conditional ones like `auth`/`keycloak` appear only when active).
 - `secret_name` follows `modules/rds` convention `${name}-secret`; the CD
