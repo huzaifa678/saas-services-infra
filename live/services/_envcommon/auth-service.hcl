@@ -10,7 +10,7 @@ terraform {
 # "auth-service" (test). In keycloak envs (prod) there is no auth DB to read.
 dependency "data" {
   config_path                             = "../../../${local.env}/20-data"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
     db_secret_arns = { auth = "arn:aws:secretsmanager:us-east-1:000000000000:secret:mock" }
   }
