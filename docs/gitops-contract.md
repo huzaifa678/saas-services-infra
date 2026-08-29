@@ -44,6 +44,11 @@ CI (Atlantis) exports this after apply and hands it to the CD renderer.
   },
   "kafka": {
     "bootstrap_brokers": "<brokers>"
+  },
+  "registry": {
+    "account_id": "<account>",                 // AWS account id
+    "region": "us-east-1",
+    "url": "<account>.dkr.ecr.us-east-1.amazonaws.com"  // ECR registry host
   }
 }
 ```
@@ -60,3 +65,6 @@ CI (Atlantis) exports this after apply and hands it to the CD renderer.
   renderer uses it verbatim as the External Secrets `remoteRef.key`.
 - The contract carries no secret *values* — only names/ARNs/endpoints. Master
   credentials stay in Secrets Manager and reach the cluster via External Secrets.
+- `registry.url` is `${account_id}.dkr.ecr.${region}.amazonaws.com` (account id
+  from `aws_caller_identity`). The CD renderer injects it into the Crossplane
+  `function-appdatabase` image ref so the AWS account is never hardcoded there.

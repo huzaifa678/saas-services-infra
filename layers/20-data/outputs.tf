@@ -79,5 +79,13 @@ output "gitops_contract" {
     kafka = {
       bootstrap_brokers = module.msk.bootstrap_brokers
     }
+    # ECR registry host for this account/region. The CD repo renders the
+    # Crossplane function image ref (function-appdatabase) from this instead of
+    # hardcoding the AWS account number.
+    registry = {
+      account_id = data.aws_caller_identity.current.account_id
+      region     = var.region
+      url        = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    }
   }
 }
