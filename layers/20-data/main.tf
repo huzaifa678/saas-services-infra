@@ -63,6 +63,7 @@ locals {
       billing      = { name = "saas-billing-db", db_name = "billing_db", db_username = "billing_user", password = null }
       usage        = { name = "saas-usage-db", db_name = "usage_db", db_username = "usage_user", password = null }
       airflow      = { name = "saas-airflow-db", db_name = "airflow_db", db_username = "airflow_user", password = null }
+      backstage    = { name = "saas-backstage-db", db_name = "backstage", db_username = "backstage_user", password = null }
     },
     var.auth_provider == "auth-service" ? {
       auth = { name = "saas-auth-db", db_name = "auth_db", db_username = "auth_user", password = null }
