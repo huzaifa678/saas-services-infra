@@ -7,7 +7,9 @@ locals {
   auth_provider = "auth-service"
   observability = "elk"
 
-  sizing = {
-    eks_node_desired_size = 3
-  }
+  # Cost-optimised launch footprint for test.
+  # Grow to `growth` capacity tier as scale increases.
+  capacity_tier = "launch_lite"
+
+  sizing = {}
 }
