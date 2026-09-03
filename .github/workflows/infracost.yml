@@ -63,6 +63,15 @@ jobs:
               --out-file "/tmp/infracost/$layer.json"
           done
 
+      - name: cost breakdown in run summary
+        if: always()
+        run: |
+          infracost output \
+            --path "/tmp/infracost/*.json" \
+            --format github-comment \
+            --out-file /tmp/infracost/summary.md
+          cat /tmp/infracost/summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: post cost comment
         run: |
           infracost comment github \
