@@ -16,6 +16,7 @@ module "guardrails" {
   environment                 = var.environment
   project                     = var.project
   sizing                      = var.sizing
+  capacity_tier               = var.capacity_tier
   allowed_public_access_cidrs = var.allowed_public_access_cidrs
   auth_provider               = var.auth_provider
   observability               = var.observability
