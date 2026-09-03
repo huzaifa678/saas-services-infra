@@ -162,6 +162,119 @@ run "sizing_override_is_honoured" {
   }
 }
 
+# --- Capacity tiers ---------------------------------------------------------
+
+run "default_tier_preserves_prod_scale" {
+  command = plan
+
+  variables {
+    environment = "prod"
+    # capacity_tier deliberately unset -> must reproduce the original prod size.
+  }
+
+  assert {
+    condition     = output.sizing.rds_instance_class == "db.m7g.large" && output.sizing.eks_node_desired_size == 6 && output.sizing.opensearch_instance_count == 3
+    error_message = "unset capacity_tier must fall back to the `scale` tier for prod (original values)."
+  }
+}
+
+run "default_tier_preserves_test_growth" {
+  command = plan
+
+  variables {
+    environment = "test"
+  }
+
+  assert {
+    condition     = output.sizing.rds_instance_class == "db.t4g.medium" && output.sizing.eks_node_desired_size == 3
+    error_message = "unset capacity_tier must fall back to the `growth` tier for test (original values)."
+  }
+}
+
+run "launch_tier_is_prod_legal" {
+  command = plan
+
+  variables {
+    environment   = "prod"
+    capacity_tier = "launch"
+  }
+
+  assert {
+    condition     = output.sizing.rds_allocated_storage == 150 && output.sizing.eks_node_desired_size == 4
+    error_message = "prod on the launch tier should use the cost-optimised storage and 4 desired nodes."
+  }
+
+  assert {
+    condition     = output.sizing.msk_broker_count >= 3 && output.sizing.eks_node_min_size >= 3 && output.sizing.opensearch_instance_count >= 2
+    error_message = "the launch tier must stay prod-legal (>= 3 brokers, >= 3 nodes, >= 2 OpenSearch nodes)."
+  }
+}
+
+run "launch_lite_tier_for_test" {
+  command = plan
+
+  variables {
+    environment   = "test"
+    capacity_tier = "launch_lite"
+  }
+
+  assert {
+    condition     = output.sizing.msk_broker_count == 2 && output.sizing.eks_node_desired_size == 2
+    error_message = "launch_lite is the leaner non-prod footprint: 2 brokers, 2 nodes."
+  }
+
+  assert {
+    condition     = output.sizing.rds_instance_class == "db.t4g.medium" && output.sizing.opensearch_instance_count == 2
+    error_message = "launch_lite should use the burstable RDS class and keep OpenSearch >= 2 for zone awareness."
+  }
+}
+
+run "prod_rejects_launch_lite" {
+  command = plan
+
+  variables {
+    environment   = "prod"
+    capacity_tier = "launch_lite"
+  }
+
+  # launch_lite has 2 brokers / 2 nodes, so the prod capacity invariants must
+  # reject it -- the tier ladder cannot smuggle an unsafe size into prod.
+  expect_failures = [terraform_data.guardrail_invariants]
+}
+
+run "per_key_override_beats_tier" {
+  command = plan
+
+  variables {
+    environment   = "prod"
+    capacity_tier = "launch"
+    sizing = {
+      eks_node_desired_size = 5
+    }
+  }
+
+  assert {
+    condition     = output.sizing.eks_node_desired_size == 5
+    error_message = "an explicit sizing key must win over the selected tier."
+  }
+
+  assert {
+    condition     = output.sizing.rds_allocated_storage == 150
+    error_message = "unset keys must still come from the launch tier."
+  }
+}
+
+run "rejects_unknown_capacity_tier" {
+  command = plan
+
+  variables {
+    environment   = "test"
+    capacity_tier = "huge"
+  }
+
+  expect_failures = [var.capacity_tier]
+}
+
 # --- Negative cases: the invariants must actually fire ----------------------
 
 run "dev_requires_public_cidr_allowlist" {
