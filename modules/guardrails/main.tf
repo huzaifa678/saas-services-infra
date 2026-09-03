@@ -173,7 +173,20 @@ locals {
 
   security = local.security_matrix[local.env]
 
-  sizing_defaults = {
+  # ── Capacity tiers ──────────────────────────────────────────────────────
+  # Pure cost/scale, decoupled from `environment` (which owns security). A tier
+  # is just a named size; the security invariants below VALIDATE that the tier
+  # an env selected is legal for that env (e.g. prod rejects any tier with <3
+  # MSK brokers, <3 nodes, or <2 OpenSearch data nodes).
+  #
+  # Open for extension, closed for modification:
+  #   * Grow an environment by flipping its `capacity_tier` -- never by editing
+  #     a tier's numbers. The larger tiers (`growth`, `scale`) hold the values
+  #     an env grows INTO, kept ready rather than deleted.
+  #   * Need a footprint no tier covers? Add a NEW tier here; leave the rest
+  #     untouched. Existing envs are unaffected until they opt in.
+  capacity_tiers = {
+    # dev footprint. Single-AZ, burstable, cheapest thing that boots.
     dev = {
       rds_instance_class        = "db.t4g.micro"
       rds_allocated_storage     = 20
@@ -189,7 +202,47 @@ locals {
       eks_node_max_size         = 5
       eks_node_desired_size     = 2
     }
-    test = {
+
+    # Cost-optimised launch footprint. Legal in EVERY env (keeps msk_broker_count
+    # >= 3, eks nodes >= 3, opensearch_instance_count >= 2), so a brand-new prod
+    # can start here and grow into `scale` later without any value churn.
+    launch = {
+      rds_instance_class        = "db.m7g.large"
+      rds_allocated_storage     = 150
+      msk_broker_instance_type  = "kafka.m7g.large"
+      msk_broker_count          = 3
+      elasticache_node_type     = "cache.r7g.large"
+      elasticache_num_replicas  = 1
+      opensearch_instance_type  = "m6g.large.search"
+      opensearch_instance_count = 2
+      opensearch_volume_size    = 100
+      eks_node_instance_types   = ["m6i.xlarge"]
+      eks_node_min_size         = 3
+      eks_node_max_size         = 20
+      eks_node_desired_size     = 4
+    }
+
+    # Leaner launch footprint for NON-prod (2 MSK brokers, 2 nodes). Deliberately
+    # NOT prod-legal -- the prod invariants (msk >= 3, nodes >= 3) reject it, so
+    # it can only ever be selected by dev/test.
+    launch_lite = {
+      rds_instance_class        = "db.t4g.medium"
+      rds_allocated_storage     = 60
+      msk_broker_instance_type  = "kafka.t3.small"
+      msk_broker_count          = 2
+      elasticache_node_type     = "cache.t4g.medium"
+      elasticache_num_replicas  = 1
+      opensearch_instance_type  = "t3.medium.search"
+      opensearch_instance_count = 2
+      opensearch_volume_size    = 30
+      eks_node_instance_types   = ["m6i.large"]
+      eks_node_min_size         = 2
+      eks_node_max_size         = 8
+      eks_node_desired_size     = 2
+    }
+
+    # Mid tier -- the values test ran before cost-optimisation.
+    growth = {
       rds_instance_class        = "db.t4g.medium"
       rds_allocated_storage     = 100
       msk_broker_instance_type  = "kafka.m7g.large"
@@ -204,7 +257,10 @@ locals {
       eks_node_max_size         = 8
       eks_node_desired_size     = 3
     }
-    prod = {
+
+    # Full scale -- the values prod ran before cost-optimisation. This is the
+    # target an env grows INTO; the numbers live here ready, not deleted.
+    scale = {
       rds_instance_class        = "db.m7g.large"
       rds_allocated_storage     = 500
       msk_broker_instance_type  = "kafka.m7g.large"
@@ -221,8 +277,21 @@ locals {
     }
   }
 
+  # The rung an env lands on when it names no `capacity_tier`. These map each env
+  # to its PRE-cost-optimisation footprint, so unsetting capacity_tier anywhere
+  # reproduces the original behaviour exactly.
+  default_capacity_tier = {
+    dev  = "dev"
+    test = "growth"
+    prod = "scale"
+  }
+
+  capacity_tier = coalesce(var.capacity_tier, local.default_capacity_tier[local.env])
+
+  # Effective sizing: the selected tier, with per-key `var.sizing` overrides
+  # still winning for one-off tweaks that don't warrant a whole tier.
   sizing = {
-    for k, v in local.sizing_defaults[local.env] :
+    for k, v in local.capacity_tiers[local.capacity_tier] :
     k => coalesce(try(var.sizing[k], null), v)
   }
 

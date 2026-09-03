@@ -19,6 +19,22 @@ variable "project" {
   }
 }
 
+variable "capacity_tier" {
+  description = <<-EOT
+    Named capacity/scale tier -- cost/capacity only, never security. Selects one
+    of the tiers in local.capacity_tiers. null falls back to the environment's
+    default rung (dev->dev, test->growth, prod->scale), reproducing the pre-tier
+    behaviour. Grow an env by changing this.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.capacity_tier == null || contains(["dev", "launch", "launch_lite", "growth", "scale"], var.capacity_tier)
+    error_message = "capacity_tier must be one of: dev, launch, launch_lite, growth, scale (or null for the env default)."
+  }
+}
+
 variable "sizing" {
   description = "Per-environment sizing overrides. Cost/capacity only -- never security."
   type = object({
