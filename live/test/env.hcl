@@ -11,5 +11,7 @@ locals {
   # Grow to `growth` capacity tier as scale increases.
   capacity_tier = "launch_lite"
 
-  sizing = {}
+  sizing = {
+    rds_instance_class = "db.t4g.micro"
+  }
 }
