@@ -54,6 +54,12 @@ variable "schema_registry_name" {
   default     = "saas-schema-registry"
 }
 
+variable "capacity_tier" {
+  description = "Named capacity/scale tier (cost only). Passed through to guardrails; null => the env's default rung."
+  type        = string
+  default     = null
+}
+
 variable "sizing" {
   description = "Per-environment sizing overrides. Cost/capacity only."
   type = object({
