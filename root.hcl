@@ -56,6 +56,7 @@ inputs = merge(
     project                     = local.project
     environment                 = local.environment
     region                      = local.region
+    capacity_tier               = try(local.env_vars.locals.capacity_tier, null)
     sizing                      = try(local.env_vars.locals.sizing, {})
     allowed_public_access_cidrs = try(local.env_vars.locals.allowed_public_access_cidrs, [])
   },
