@@ -5,7 +5,7 @@ locals {
   region      = "us-east-1"
 
   auth_provider = "auth-service"
-  observability = "elk"
+  observability = ["elk"]
 
   # Cost-optimised launch footprint for test.
   # Grow to `growth` capacity tier as scale increases.
