@@ -55,8 +55,8 @@ variable "auth0_client_secret" {
 }
 
 variable "observability" {
-  type    = string
-  default = "grafana"
+  type    = list(string)
+  default = ["grafana"]
 }
 
 variable "karpenter_interruption_queue_name" {

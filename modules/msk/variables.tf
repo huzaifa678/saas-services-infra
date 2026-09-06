@@ -58,6 +58,12 @@ variable "sasl_scram_enabled" {
   default     = false
 }
 
+variable "tls_client_authority_arns" {
+  type        = list(string)
+  description = "ACM Private CA ARNs for MSK mutual-TLS (client-certificate) authentication on port 9094. Empty disables mTLS and leaves SASL/IAM as the only client auth mechanism."
+  default     = []
+}
+
 variable "client_broker_encryption" {
   type        = string
   description = "Client-broker encryption. TLS only."

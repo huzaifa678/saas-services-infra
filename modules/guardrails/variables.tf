@@ -87,12 +87,16 @@ variable "auth_provider" {
 }
 
 variable "observability" {
-  description = "Which observability stack this environment deploys: 'elk' or 'grafana'."
-  type        = string
-  default     = "elk"
+  description = "Self-hosted observability stacks this environment runs. A subset of [elk, grafana]; a cluster may declare both."
+  type        = list(string)
+  default     = ["elk"]
 
   validation {
-    condition     = contains(["elk", "grafana"], var.observability)
-    error_message = "observability must be 'elk' or 'grafana'."
+    condition = (
+      length(var.observability) > 0 &&
+      length(setsubtract(toset(var.observability), toset(["elk", "grafana"]))) == 0 &&
+      length(distinct(var.observability)) == length(var.observability)
+    )
+    error_message = "observability must be a non-empty, duplicate-free subset of [\"elk\", \"grafana\"]."
   }
 }

@@ -24,7 +24,13 @@ output "redis_auth_secret_arn" {
 }
 
 output "msk_bootstrap_brokers" { value = module.msk.bootstrap_brokers }
+output "msk_bootstrap_brokers_sasl_iam" { value = module.msk.bootstrap_brokers_sasl_iam }
 output "msk_cluster_arn" { value = module.msk.cluster_arn }
+
+output "msk_client_role_arns" {
+  description = "Per-workload MSK IAM role ARNs, keyed by the kafka_clients label."
+  value       = { for k, m in module.msk_client_identity : k => m.role_arn }
+}
 
 output "msk_open_ports" {
   description = "Broker ports opened, derived from the enabled SASL mechanisms."
@@ -77,7 +83,10 @@ output "gitops_contract" {
       auth_secret_arn = module.elasticache.auth_token_secret_arn
     }
     kafka = {
-      bootstrap_brokers = module.msk.bootstrap_brokers
+      # Plaintext endpoint is empty under the TLS-only posture; consumers connect
+      # to the SASL/IAM endpoint and authenticate via Pod Identity.
+      bootstrap_brokers          = module.msk.bootstrap_brokers
+      bootstrap_brokers_sasl_iam = module.msk.bootstrap_brokers_sasl_iam
     }
     # ECR registry host for this account/region. The CD repo renders the
     # Crossplane function image ref (function-appdatabase) from this instead of

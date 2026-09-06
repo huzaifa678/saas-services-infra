@@ -5,7 +5,7 @@ locals {
   region      = "us-east-1"
 
   auth_provider = "keycloak"
-  observability = "elk"
+  observability = ["elk"]
 
   # dev has a public endpoint, so this allow-list may not be empty. Guardrails
   # rejects 0.0.0.0/0 outright.
