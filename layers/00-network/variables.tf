@@ -93,7 +93,7 @@ variable "auth_provider" {
 }
 
 variable "observability" {
-  description = "elk | grafana"
-  type        = string
-  default     = "elk"
+  description = "Subset of [elk, grafana] — self-hosted observability stacks this cluster runs."
+  type        = list(string)
+  default     = ["elk"]
 }

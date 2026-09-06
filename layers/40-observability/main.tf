@@ -26,12 +26,12 @@ module "guardrails" {
 # Manager as JSON {username, password} — never passed from CI. Only read for the
 # elk stack (the grafana stack builds no OpenSearch domain).
 data "aws_secretsmanager_secret_version" "opensearch" {
-  count     = var.observability == "elk" ? 1 : 0
+  count     = var.observability[0] == "elk" ? 1 : 0
   secret_id = "saas/${var.environment}/opensearch-master"
 }
 
 locals {
-  opensearch = var.observability == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
+  opensearch = var.observability[0] == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
 }
 
 # Pure AWS: managed Grafana / Prometheus workspaces, the OpenSearch domain, and
@@ -40,7 +40,7 @@ locals {
 module "observability" {
   source = "../../modules/observability"
 
-  stack             = var.observability
+  stack             = var.observability[0]
   oidc_provider_arn = var.oidc_provider_arn
   oidc_issuer       = var.oidc_issuer
 

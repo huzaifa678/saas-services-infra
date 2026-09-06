@@ -15,7 +15,9 @@ resource "helm_release" "argocd" {
 
 data "kubectl_file_documents" "saas_manifest" {
   content = templatefile("${path.module}/argo-saas.yaml.tpl", {
-    env = local.env
+    env           = local.env
+    stack_grafana = local.stack_grafana
+    stack_elk     = local.stack_elk
   })
 }
 

@@ -6,6 +6,10 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: cluster
     env: ${env}
+    # Per-stack selectors for the observability ApplicationSet. A cluster may
+    # carry both (e.g. prod running grafana + elk).
+    stack-grafana: "${stack_grafana}"
+    stack-elk: "${stack_elk}"
 stringData:
   name: in-cluster
   server: https://kubernetes.default.svc
