@@ -31,6 +31,48 @@ locals {
   sizing   = module.guardrails.sizing
   tags     = module.guardrails.common_tags
 
+  # Kubernetes workloads granted MSK access via Pod Identity. Keys are arbitrary
+  # labels; namespace/service_account must match the deployed pods (Helm charts
+  # land in saas-apps; the usage-etl KEDA consumer lives in usage-etl). Topics and
+  # consumer groups default to cluster-wide "*"; tighten per workload as the topic
+  # taxonomy settles.
+  kafka_clients = {
+    "billing-service" = {
+      namespace       = "saas-apps"
+      service_account = "billing-service"
+      topics          = ["*"]
+      consumer_groups = ["*"]
+    }
+    "subscription-service" = {
+      namespace       = "saas-apps"
+      service_account = "subscription-service"
+      topics          = ["*"]
+      consumer_groups = ["*"]
+    }
+    "usage-ingest" = {
+      namespace       = "usage-etl"
+      service_account = "usage-ingest"
+      topics          = ["*"]
+      consumer_groups = ["*"]
+    }
+    # OTel Collector: buffers all services' logs onto the otel-logs topic
+    # (producer, every env) and drains it back to Loki in dev (consumer group
+    # otel-logs-loki). Deployed by saas-chart into the saas-apps namespace.
+    "otel-collector" = {
+      namespace       = "saas-apps"
+      service_account = "otel-collector"
+      topics          = ["otel-logs"]
+      consumer_groups = ["otel-logs-loki"]
+    }
+    # Logstash (elk envs): drains the otel-logs buffer into Elasticsearch.
+    "logstash" = {
+      namespace       = "logging"
+      service_account = "logstash-otel"
+      topics          = ["otel-logs"]
+      consumer_groups = ["logstash-otel-logs"]
+    }
+  }
+
   # MSK places one broker per client subnet and requires the broker count to be an
   # exact multiple of the subnet count.
   msk_subnets = slice(var.private_subnets, 0, local.sizing.msk_broker_count)
@@ -147,14 +189,35 @@ module "msk" {
   number_of_broker_nodes = local.sizing.msk_broker_count
   broker_instance_type   = local.sizing.msk_broker_instance_type
 
-  unauthenticated_access   = local.security.msk_unauthenticated_access
-  sasl_iam_enabled         = local.security.msk_sasl_iam_enabled
-  sasl_scram_enabled       = local.security.msk_sasl_scram_enabled
-  client_broker_encryption = local.security.msk_client_broker_encryption
-  in_cluster_encryption    = local.security.msk_in_cluster_encryption
-  enhanced_monitoring      = local.security.msk_enhanced_monitoring
+  unauthenticated_access    = local.security.msk_unauthenticated_access
+  sasl_iam_enabled          = local.security.msk_sasl_iam_enabled
+  sasl_scram_enabled        = local.security.msk_sasl_scram_enabled
+  client_broker_encryption  = local.security.msk_client_broker_encryption
+  in_cluster_encryption     = local.security.msk_in_cluster_encryption
+  enhanced_monitoring       = local.security.msk_enhanced_monitoring
+  tls_client_authority_arns = var.msk_tls_client_authority_arns
 
   tags = local.tags
+}
+
+# Kafka clients: every in-mesh workload that talks to MSK gets a dedicated,
+# least-privilege IAM role bound to its Kubernetes ServiceAccount via EKS Pod
+# Identity (module below). Without this the cluster's SASL/IAM requirement is
+# unusable — no producer/consumer could authenticate. The service-account names
+# match the Helm charts (charts/* -> saas-apps) and the usage-etl consumer in the
+# CD repo.
+module "msk_client_identity" {
+  source   = "../../modules/msk-iam"
+  for_each = local.kafka_clients
+
+  name             = "${var.cluster_name}-${each.key}"
+  eks_cluster_name = var.cluster_name
+  msk_cluster_arn  = module.msk.cluster_arn
+  namespace        = each.value.namespace
+  service_account  = each.value.service_account
+  topics           = each.value.topics
+  consumer_groups  = each.value.consumer_groups
+  tags             = local.tags
 }
 
 resource "terraform_data" "data_invariants" {
