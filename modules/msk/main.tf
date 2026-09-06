@@ -49,6 +49,15 @@ resource "aws_msk_cluster" "this" {
       iam   = var.sasl_iam_enabled
       scram = var.sasl_scram_enabled
     }
+
+    # Mutual TLS (client X.509 certificate) authentication. Only rendered when
+    # ACM Private CA ARNs are supplied.
+    dynamic "tls" {
+      for_each = length(var.tls_client_authority_arns) > 0 ? [1] : []
+      content {
+        certificate_authority_arns = var.tls_client_authority_arns
+      }
+    }
   }
 
   encryption_info {
