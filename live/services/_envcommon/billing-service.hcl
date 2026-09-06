@@ -18,9 +18,10 @@ dependency "data" {
   config_path                             = "../../../${local.env}/20-data"
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
-    redis_endpoint        = "mock.cache.amazonaws.com"
-    msk_bootstrap_brokers = "b-1.mock:9098,b-2.mock:9098"
-    db_secret_arns        = { billing = "arn:aws:secretsmanager:us-east-1:000000000000:secret:mock" }
+    redis_endpoint                 = "mock.cache.amazonaws.com"
+    msk_bootstrap_brokers          = "b-1.mock:9098,b-2.mock:9098"
+    msk_bootstrap_brokers_sasl_iam = "b-1.mock:9098,b-2.mock:9098"
+    db_secret_arns                 = { billing = "arn:aws:secretsmanager:us-east-1:000000000000:secret:mock" }
   }
 }
 
@@ -28,6 +29,6 @@ inputs = {
   environment             = local.env
   billing_db_secret_arn   = dependency.data.outputs.db_secret_arns["billing"]
   redis_endpoint          = dependency.data.outputs.redis_endpoint
-  kafka_bootstrap_brokers = dependency.data.outputs.msk_bootstrap_brokers
+  kafka_bootstrap_brokers = dependency.data.outputs.msk_bootstrap_brokers_sasl_iam
   schema_registry_arn     = dependency.network.outputs.schema_registry_arn
 }
