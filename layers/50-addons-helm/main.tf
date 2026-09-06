@@ -39,12 +39,12 @@ module "guardrails" {
 # the observability layer reads (the OTel collector connects with them). Never
 # passed from CI; only present for the elk stack.
 data "aws_secretsmanager_secret_version" "opensearch" {
-  count     = var.observability == "elk" ? 1 : 0
+  count     = var.observability[0] == "elk" ? 1 : 0
   secret_id = "saas/${var.environment}/opensearch-master"
 }
 
 locals {
-  opensearch = var.observability == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
+  opensearch = var.observability[0] == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
 }
 
 # modules/otel is a sibling of modules/k8s-and-helm, so it does not inherit the

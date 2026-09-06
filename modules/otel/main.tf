@@ -17,7 +17,8 @@ resource "aws_eks_addon" "adot" {
 }
 
 resource "kubectl_manifest" "otel_collector_grafana" {
-  count = var.observability == "grafana" ? 1 : 0
+  # AWS-managed ADOT points at a single backend: the primary (first) stack.
+  count = var.observability[0] == "grafana" ? 1 : 0
 
   depends_on = [aws_eks_addon.adot]
 
@@ -106,7 +107,8 @@ resource "kubectl_manifest" "otel_collector_grafana" {
 }
 
 resource "kubectl_manifest" "otel_collector_elk" {
-  count = var.observability == "elk" ? 1 : 0
+  # AWS-managed ADOT points at a single backend: the primary (first) stack.
+  count = var.observability[0] == "elk" ? 1 : 0
 
   depends_on = [aws_eks_addon.adot]
 
