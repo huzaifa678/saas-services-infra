@@ -16,7 +16,21 @@ cd live/<env>/20-data
 terragrunt output -json gitops_contract > gitops-contract.<env>.json
 ```
 
-CI (Atlantis) exports this after apply and hands it to the CD renderer.
+After the `20-data` apply, `.github/workflows/infra.yml` publishes the contract to
+**both** stores so the CD repo can select either delivery mode without a re-apply:
+
+- **SSM SecureString** `/saas/<env>/gitops-contract` — the full contract, consumed
+  by the CD repo's `scripts/render_gitops.py` (`render` mode).
+- **Secrets Manager** `saas/<env>/infra-contract` — the non-DB identity slice
+  (`cluster_name`, `karpenter_interruption_queue`, `keycloak_db_host`, plus
+  `region`/`registry_url`/`redis_*`/`kafka_*`), read by External Secrets at runtime
+  (`eso` mode). Master DB credentials are **not** duplicated here — they stay in the
+  per-DB Secrets Manager secrets `modules/rds` provisions.
+
+Which mode an environment uses is decided in the CD repo
+(`contracts/delivery-mode.<env>`; see its
+`docs/gitops-contract-delivery-modes.md`). The ESO IAM role already grants
+`secretsmanager:GetSecretValue`, so no IAM change is needed for the new secret.
 
 ## Schema
 
