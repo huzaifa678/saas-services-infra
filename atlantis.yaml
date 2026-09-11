@@ -299,8 +299,13 @@ workflows:
     apply:
       steps:
         - run: terragrunt apply $PLANFILE
-        # Publish the GitOps contract to SSM after a 20-data apply so the CD
-        # repo's renderer can fetch it. No-op for every other layer.
+        # Publish the GitOps contract after a 20-data apply so the CD repo can use
+        # either delivery mode without a re-apply (see CD
+        # docs/gitops-contract-delivery-modes.md). No-op for every other layer.
+        #   render mode -> full contract to SSM, fetched by scripts/render_gitops.py
+        #   eso mode    -> identity slice to Secrets Manager saas/<env>/infra-contract,
+        #                  read by External Secrets at runtime (DB creds stay in the
+        #                  per-DB secrets modules/rds creates).
         - run: |
             case "$PROJECT_NAME" in
               20-data-*)
@@ -309,7 +314,26 @@ workflows:
                 aws ssm put-parameter \
                   --name "/saas/${ENVN}/gitops-contract" \
                   --type SecureString --tier Intelligent-Tiering --overwrite \
-                  --value "$CONTRACT" ;;
+                  --value "$CONTRACT"
+                INFRA_CONTRACT=$(echo "$CONTRACT" | jq -c '{
+                  cluster_name: .cluster.name,
+                  region: .cluster.region,
+                  karpenter_interruption_queue: .cluster.karpenter_interruption_queue,
+                  registry_url: .registry.url,
+                  keycloak_db_host: ((.databases.keycloak.endpoint // "") | split(":")[0]),
+                  redis_endpoint: .redis.endpoint,
+                  redis_port: (.redis.port | tostring),
+                  kafka_bootstrap_brokers_sasl_iam: .kafka.bootstrap_brokers_sasl_iam
+                }')
+                SECRET_ID="saas/${ENVN}/infra-contract"
+                if aws secretsmanager describe-secret --secret-id "$SECRET_ID" >/dev/null 2>&1; then
+                  aws secretsmanager put-secret-value \
+                    --secret-id "$SECRET_ID" --secret-string "$INFRA_CONTRACT"
+                else
+                  aws secretsmanager create-secret --name "$SECRET_ID" \
+                    --description "GitOps contract identity slice for the eso delivery mode (CD repo)" \
+                    --secret-string "$INFRA_CONTRACT"
+                fi ;;
               *)
                 echo "no gitops contract for $PROJECT_NAME" ;;
             esac
