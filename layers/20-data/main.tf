@@ -49,6 +49,14 @@ locals {
       topics          = ["*"]
       consumer_groups = ["*"]
     }
+    # agent-service publishes token-usage/cost events (agent.usage.recorded,
+    # consumed by usage-service) via SASL/IAM. Pod Identity SA: agent-service.
+    "agent-service" = {
+      namespace       = "saas-apps"
+      service_account = "agent-service"
+      topics          = ["*"]
+      consumer_groups = ["*"]
+    }
     "usage-ingest" = {
       namespace       = "usage-etl"
       service_account = "usage-ingest"
@@ -104,6 +112,7 @@ locals {
     {
       subscription = { name = "saas-subscription-db", db_name = "subscription_db", db_username = "subscription_user", password = null }
       billing      = { name = "saas-billing-db", db_name = "billing_db", db_username = "billing_user", password = null }
+      agent        = { name = "saas-agent-db", db_name = "agent_db", db_username = "agent_user", password = null }
       usage        = { name = "saas-usage-db", db_name = "usage_db", db_username = "usage_user", password = null }
       airflow      = { name = "saas-airflow-db", db_name = "airflow_db", db_username = "airflow_user", password = null }
       backstage    = { name = "saas-backstage-db", db_name = "backstage", db_username = "backstage_user", password = null }
