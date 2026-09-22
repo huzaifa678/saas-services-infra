@@ -52,9 +52,12 @@ Which mode an environment uses is decided in the CD repo
     }
   },
   "redis": {
-    "endpoint": "<primary-endpoint>",
+    "endpoint": "<primary-or-configuration-endpoint>", // config endpoint in cluster mode
     "port": 6379,
-    "auth_secret_arn": "<arn>"
+    "auth_secret_arn": "<arn>",           // null when RBAC is enabled (per-user auth)
+    "replication_group_id": "saas-redis", // resource_id root for tenant users + autoscaling
+    "cluster_mode_enabled": false,        // true once a sharded capacity tier is selected
+    "user_group_id": "saas-redis"         // ACL group tenants join; null under shared-token auth
   },
   "kafka": {
     "bootstrap_brokers": "<brokers>"
