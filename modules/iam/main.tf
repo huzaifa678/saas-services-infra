@@ -74,6 +74,64 @@ resource "aws_iam_role_policy_attachment" "external_secrets_attach" {
   policy_arn = aws_iam_policy.external_secrets_policy.arn
 }
 
+resource "aws_iam_role" "crossplane_aws_elasticache" {
+  name               = "${var.cluster_name}-crossplane-aws-elasticache"
+  assume_role_policy = local.pod_identity_assume_role
+}
+
+resource "aws_iam_policy" "crossplane_aws_elasticache_policy" {
+  name = "${var.cluster_name}-crossplane-aws-elasticache-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ElastiCacheManage"
+        Effect = "Allow"
+        Action = [
+          "elasticache:CreateUser",
+          "elasticache:ModifyUser",
+          "elasticache:DeleteUser",
+          "elasticache:DescribeUsers",
+          "elasticache:CreateUserGroup",
+          "elasticache:ModifyUserGroup",
+          "elasticache:DeleteUserGroup",
+          "elasticache:DescribeUserGroups",
+          "elasticache:CreateReplicationGroup",
+          "elasticache:ModifyReplicationGroup",
+          "elasticache:ModifyReplicationGroupShardConfiguration",
+          "elasticache:IncreaseReplicaCount",
+          "elasticache:DecreaseReplicaCount",
+          "elasticache:DeleteReplicationGroup",
+          "elasticache:DescribeReplicationGroups",
+          "elasticache:DescribeCacheClusters",
+          "elasticache:DescribeCacheSubnetGroups",
+          "elasticache:AddTagsToResource",
+          "elasticache:RemoveTagsFromResource",
+          "elasticache:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+      {
+        # ElastiCache needs its service-linked role to exist before it can place
+        # a replication group. Scoped to only that service-linked role.
+        Sid      = "ElastiCacheServiceLinkedRole"
+        Effect   = "Allow"
+        Action   = ["iam:CreateServiceLinkedRole"]
+        Resource = "arn:aws:iam::*:role/aws-service-role/elasticache.amazonaws.com/AWSServiceRoleForElastiCache"
+        Condition = {
+          StringLike = { "iam:AWSServiceName" = "elasticache.amazonaws.com" }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "crossplane_aws_elasticache_attach" {
+  role       = aws_iam_role.crossplane_aws_elasticache.name
+  policy_arn = aws_iam_policy.crossplane_aws_elasticache_policy.arn
+}
+
 resource "aws_iam_role" "aws_lb_controller_irsa" {
   name               = "${var.cluster_name}-aws-lb-controller-irsa"
   assume_role_policy = local.pod_identity_assume_role
