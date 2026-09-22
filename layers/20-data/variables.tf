@@ -30,6 +30,8 @@ variable "sizing" {
     msk_broker_count          = optional(number)
     elasticache_node_type     = optional(string)
     elasticache_num_replicas  = optional(number)
+    elasticache_num_shards    = optional(number)
+    elasticache_max_shards    = optional(number)
     opensearch_instance_type  = optional(string)
     opensearch_instance_count = optional(number)
     opensearch_volume_size    = optional(number)
@@ -45,6 +47,12 @@ variable "allowed_public_access_cidrs" {
   description = "CIDRs permitted to reach the EKS public API endpoint (dev only)."
   type        = list(string)
   default     = []
+}
+
+variable "redis_rbac_enabled" {
+  description = "Authenticate ElastiCache with a Redis ACL user group (RBAC) instead of a shared AUTH token. Precondition for self-service cache tenants (Crossplane-managed users). Mutually exclusive with the shared AUTH token; off by default -- a deliberate per-env opt-in, since flipping it migrates existing consumers off the shared token."
+  type        = bool
+  default     = false
 }
 
 variable "auth_provider" {

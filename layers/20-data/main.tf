@@ -177,12 +177,23 @@ module "elasticache" {
 
   node_type                  = local.sizing.elasticache_node_type
   num_replicas               = local.sizing.elasticache_num_replicas
+  num_shards                 = local.sizing.elasticache_num_shards
   at_rest_encryption_enabled = local.security.elasticache_at_rest_encryption
   transit_encryption_enabled = local.security.elasticache_transit_encryption
-  auth_token_enabled         = local.security.elasticache_auth_token_enabled
+  # RBAC replaces the shared AUTH token; when it is on, auth_token is not issued.
+  # It is the precondition for self-service cache tenants (Crossplane-managed
+  # ACL users). Off by default -- a deliberate, per-env opt-in.
+  rbac_enabled               = var.redis_rbac_enabled
+  auth_token_enabled         = var.redis_rbac_enabled ? false : local.security.elasticache_auth_token_enabled
   automatic_failover_enabled = local.security.elasticache_automatic_failover
   multi_az_enabled           = local.security.elasticache_multi_az
   snapshot_retention_days    = local.security.elasticache_snapshot_retention_days
+
+  # Shard auto scaling turns on for any sharded tier; AWS does the online
+  # resharding to hold the target metric. Single-shard tiers leave it off.
+  autoscaling_enabled    = local.sizing.elasticache_num_shards > 1
+  autoscaling_min_shards = local.sizing.elasticache_num_shards
+  autoscaling_max_shards = local.sizing.elasticache_max_shards
 
   tags = local.tags
 }

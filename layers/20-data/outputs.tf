@@ -78,9 +78,16 @@ output "gitops_contract" {
       }
     }
     redis = {
-      endpoint        = module.elasticache.primary_endpoint
-      port            = module.elasticache.port
-      auth_secret_arn = module.elasticache.auth_token_secret_arn
+      endpoint             = module.elasticache.primary_endpoint
+      port                 = module.elasticache.port
+      auth_secret_arn      = module.elasticache.auth_token_secret_arn
+      replication_group_id = module.elasticache.replication_group_id
+      cluster_mode_enabled = module.elasticache.cluster_mode_enabled
+      # Present only when RBAC is enabled: the ACL user group that self-service
+      # cache tenants (Crossplane elasticache.User) join. null under shared-token
+      # auth, which is the signal to the CD renderer that the shared-mode
+      # AppCache path is not yet available in this environment.
+      user_group_id = module.elasticache.user_group_id
     }
     kafka = {
       # Plaintext endpoint is empty under the TLS-only posture; consumers connect
