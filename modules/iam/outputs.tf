@@ -18,6 +18,11 @@ output "external_secrets_irsa_role_arn" {
   value       = aws_iam_role.external_secrets_irsa.arn
 }
 
+output "crossplane_aws_elasticache_role_arn" {
+  description = "ARN of the Crossplane provider-aws (ElastiCache) controller role, bound via Pod Identity to provider-aws-elasticache in crossplane-system."
+  value       = aws_iam_role.crossplane_aws_elasticache.arn
+}
+
 output "karpenter_irsa_role_arn" {
   description = "ARN of the Karpenter controller IRSA role"
   value       = aws_iam_role.karpenter_irsa.arn
