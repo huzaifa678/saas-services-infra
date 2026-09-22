@@ -194,6 +194,8 @@ locals {
       msk_broker_count          = 2
       elasticache_node_type     = "cache.t4g.micro"
       elasticache_num_replicas  = 0
+      elasticache_num_shards    = 1
+      elasticache_max_shards    = 1
       opensearch_instance_type  = "t3.small.search"
       opensearch_instance_count = 1
       opensearch_volume_size    = 10
@@ -213,6 +215,8 @@ locals {
       msk_broker_count          = 3
       elasticache_node_type     = "cache.r7g.large"
       elasticache_num_replicas  = 1
+      elasticache_num_shards    = 1
+      elasticache_max_shards    = 1
       opensearch_instance_type  = "m6g.large.search"
       opensearch_instance_count = 2
       opensearch_volume_size    = 100
@@ -232,6 +236,8 @@ locals {
       msk_broker_count          = 2
       elasticache_node_type     = "cache.t4g.medium"
       elasticache_num_replicas  = 1
+      elasticache_num_shards    = 1
+      elasticache_max_shards    = 1
       opensearch_instance_type  = "t3.medium.search"
       opensearch_instance_count = 2
       opensearch_volume_size    = 30
@@ -249,6 +255,8 @@ locals {
       msk_broker_count          = 3
       elasticache_node_type     = "cache.m7g.large"
       elasticache_num_replicas  = 1
+      elasticache_num_shards    = 1
+      elasticache_max_shards    = 1
       opensearch_instance_type  = "m6g.large.search"
       opensearch_instance_count = 2
       opensearch_volume_size    = 50
@@ -267,6 +275,31 @@ locals {
       msk_broker_count          = 3
       elasticache_node_type     = "cache.r7g.large"
       elasticache_num_replicas  = 2
+      elasticache_num_shards    = 1
+      elasticache_max_shards    = 1
+      opensearch_instance_type  = "m6g.large.search"
+      opensearch_instance_count = 3
+      opensearch_volume_size    = 200
+      eks_node_instance_types   = ["m6i.xlarge"]
+      eks_node_min_size         = 3
+      eks_node_max_size         = 20
+      eks_node_desired_size     = 6
+    }
+
+    # Horizontally-sharded scale tier. Redis Cluster mode: the keyspace is split
+    # across 3 shards (hash slots), each with a replica for failover, and shard
+    # auto scaling is allowed to grow the set up to elasticache_max_shards under
+    # memory pressure. Prod-legal (multi-AZ + failover come from the security
+    # matrix; replicas >= 1). Selected by naming capacity_tier = "scale_sharded".
+    scale_sharded = {
+      rds_instance_class        = "db.m7g.large"
+      rds_allocated_storage     = 500
+      msk_broker_instance_type  = "kafka.m7g.large"
+      msk_broker_count          = 3
+      elasticache_node_type     = "cache.r7g.large"
+      elasticache_num_replicas  = 1
+      elasticache_num_shards    = 3
+      elasticache_max_shards    = 6
       opensearch_instance_type  = "m6g.large.search"
       opensearch_instance_count = 3
       opensearch_volume_size    = 200
@@ -383,6 +416,20 @@ resource "terraform_data" "guardrail_invariants" {
     precondition {
       condition     = local.security.elasticache_automatic_failover == false || local.sizing.elasticache_num_replicas >= 1
       error_message = "INVARIANT: automatic_failover requires at least one read replica to fail over to."
+    }
+
+    # Redis Cluster mode has no non-failover form: every shard is a primary and
+    # AWS mandates automatic failover across the shard set. Since failover is a
+    # pure function of environment, a sharded tier is therefore illegal in dev's
+    # posture -- pushing cluster mode to test/prod only, by construction.
+    precondition {
+      condition     = local.sizing.elasticache_num_shards == 1 || local.security.elasticache_automatic_failover
+      error_message = "INVARIANT: cluster mode (elasticache_num_shards > 1) requires automatic_failover, which dev's posture disables. Use a sharded tier only in test/prod."
+    }
+
+    precondition {
+      condition     = local.sizing.elasticache_max_shards >= local.sizing.elasticache_num_shards
+      error_message = "INVARIANT: elasticache_max_shards must be >= elasticache_num_shards (auto scaling cannot start above its ceiling)."
     }
 
     precondition {
