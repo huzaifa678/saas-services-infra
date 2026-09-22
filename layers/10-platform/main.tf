@@ -115,6 +115,14 @@ locals {
       sa_name   = "ebs-csi-controller-sa"
       role_arn  = module.iam.ebs_csi_role_arn
     }
+    # Crossplane provider-aws (ElastiCache) controller. The SA name is pinned by
+    # a DeploymentRuntimeConfig in the CD repo so this association is stable
+    # across provider revisions. Powers the XAppCache self-service path.
+    crossplane_aws_elasticache = {
+      namespace = "crossplane-system"
+      sa_name   = "provider-aws-elasticache"
+      role_arn  = module.iam.crossplane_aws_elasticache_role_arn
+    }
   }
 }
 
