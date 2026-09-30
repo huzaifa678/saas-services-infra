@@ -102,6 +102,10 @@ locals {
     performance_insights_enabled = local.security.rds_performance_insights
     copy_tags_to_snapshot        = local.security.rds_copy_tags_to_snapshot
     skip_final_snapshot          = local.security.rds_skip_final_snapshot
+    # Operational windows (UTC), shared by every DB. Maintenance follows the backup
+    # window so patching never interrupts a backup.
+    backup_window      = "03:00-04:00"
+    maintenance_window = "sun:04:30-sun:05:30"
   }
 
   # DB master passwords are NOT supplied from CI. Passing password = null makes
@@ -158,11 +162,31 @@ module "rds" {
   storage_encrypted            = local.rds_common.storage_encrypted
   publicly_accessible          = local.rds_common.publicly_accessible
   backup_retention_days        = local.rds_common.backup_retention_days
+  backup_window                = local.rds_common.backup_window
+  maintenance_window           = local.rds_common.maintenance_window
   deletion_protection          = local.rds_common.deletion_protection
   iam_database_authentication  = local.rds_common.iam_database_authentication
   performance_insights_enabled = local.rds_common.performance_insights_enabled
   copy_tags_to_snapshot        = local.rds_common.copy_tags_to_snapshot
   skip_final_snapshot          = local.rds_common.skip_final_snapshot
+
+  tags = local.tags
+}
+
+# Long-term / cross-region backups for every database in this layer, beyond the
+# instances' own automated backups. Enabled per environment by the guardrails
+# posture (off in dev); cross-region copy activates when a DR-region vault ARN is
+# supplied. One plan selects all RDS instances by ARN.
+module "backup" {
+  source = "../../modules/backup"
+  count  = local.security.rds_long_term_backup_enabled ? 1 : 0
+
+  name                    = "${var.project}-${var.environment}-rds"
+  kms_key_arn             = var.kms_key_arn
+  resource_arns           = [for m in module.rds : m.instance_arn]
+  cold_storage_after_days = local.security.rds_backup_cold_storage_after_days
+  delete_after_days       = local.security.rds_backup_delete_after_days
+  cross_region_vault_arn  = var.rds_backup_cross_region_vault_arn
 
   tags = local.tags
 }

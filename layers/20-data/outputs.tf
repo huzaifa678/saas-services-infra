@@ -37,6 +37,11 @@ output "msk_open_ports" {
   value       = module.data_security_groups.msk_open_ports
 }
 
+output "rds_backup_vault_arn" {
+  description = "AWS Backup vault holding long-term RDS recovery points, or empty when long-term backup is disabled (dev)."
+  value       = try(module.backup[0].vault_arn, "")
+}
+
 output "rds_sg_id" { value = module.data_security_groups.rds_sg_id }
 output "redis_sg_id" { value = module.data_security_groups.redis_sg_id }
 output "msk_sg_id" { value = module.data_security_groups.msk_sg_id }
