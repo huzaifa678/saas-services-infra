@@ -84,6 +84,18 @@ variable "backup_retention_days" {
   default     = 7
 }
 
+variable "backup_window" {
+  type        = string
+  description = "Daily UTC window for automated backups (hh:mm-hh:mm). Must not overlap maintenance_window."
+  default     = "03:00-04:00"
+}
+
+variable "maintenance_window" {
+  type        = string
+  description = "Weekly UTC maintenance window (ddd:hh:mm-ddd:hh:mm). Placed after backup_window so a backup is never interrupted by patching."
+  default     = "sun:04:30-sun:05:30"
+}
+
 variable "deletion_protection" {
   type        = bool
   description = "Block `terraform destroy` and console deletion."
