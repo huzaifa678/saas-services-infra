@@ -49,6 +49,12 @@ variable "allowed_public_access_cidrs" {
   default     = []
 }
 
+variable "rds_backup_cross_region_vault_arn" {
+  description = "Destination AWS Backup vault ARN in a DR region. When set, the long-term backup plan copies each recovery point cross-region for DR. Empty keeps backups in-region only. The destination vault must already exist (created by a DR-region stack)."
+  type        = string
+  default     = ""
+}
+
 variable "redis_rbac_enabled" {
   description = "Authenticate ElastiCache with a Redis ACL user group (RBAC) instead of a shared AUTH token. Precondition for self-service cache tenants (Crossplane-managed users). Mutually exclusive with the shared AUTH token; off by default -- a deliberate per-env opt-in, since flipping it migrates existing consumers off the shared token."
   type        = bool

@@ -19,6 +19,12 @@ locals {
       rds_skip_final_snapshot   = true
       rds_copy_tags_to_snapshot = true
 
+      # Long-term / cross-region backups (AWS Backup). Off in dev — automated
+      # backups + PITR are enough for a throwaway environment.
+      rds_long_term_backup_enabled       = false
+      rds_backup_cold_storage_after_days = 0
+      rds_backup_delete_after_days       = 0
+
       msk_client_broker_encryption = "TLS"
       msk_in_cluster_encryption    = true
       msk_sasl_iam_enabled         = true
@@ -73,6 +79,11 @@ locals {
       rds_skip_final_snapshot   = false
       rds_copy_tags_to_snapshot = true
 
+      # Long-term backups retained 90 days (no cold-storage tier at this horizon).
+      rds_long_term_backup_enabled       = true
+      rds_backup_cold_storage_after_days = 0
+      rds_backup_delete_after_days       = 90
+
       msk_client_broker_encryption = "TLS"
       msk_in_cluster_encryption    = true
       msk_sasl_iam_enabled         = true
@@ -126,6 +137,13 @@ locals {
       rds_backup_retention_days = 35
       rds_skip_final_snapshot   = false
       rds_copy_tags_to_snapshot = true
+
+      # Long-term backups retained 1 year, tiered to cold storage after 30 days
+      # (delete_after >= cold + 90, per AWS). Cross-region copy is enabled per-env
+      # by supplying a DR-region vault ARN (var.rds_backup_cross_region_vault_arn).
+      rds_long_term_backup_enabled       = true
+      rds_backup_cold_storage_after_days = 30
+      rds_backup_delete_after_days       = 365
 
       msk_client_broker_encryption = "TLS"
       msk_in_cluster_encryption    = true
@@ -366,6 +384,16 @@ resource "terraform_data" "guardrail_invariants" {
     precondition {
       condition     = local.env != "prod" || local.security.rds_backup_retention_days >= 30
       error_message = "INVARIANT: prod RDS backup retention must be >= 30 days."
+    }
+
+    precondition {
+      condition     = local.env != "prod" || local.security.rds_long_term_backup_enabled
+      error_message = "INVARIANT: prod must enable long-term AWS Backup (retention beyond the 35-day automated-backup ceiling)."
+    }
+
+    precondition {
+      condition     = local.security.rds_backup_cold_storage_after_days <= 0 || local.security.rds_backup_delete_after_days >= local.security.rds_backup_cold_storage_after_days + 90
+      error_message = "INVARIANT: AWS Backup delete_after must be >= cold_storage_after + 90 days."
     }
 
     precondition {

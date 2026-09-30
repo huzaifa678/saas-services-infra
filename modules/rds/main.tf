@@ -61,6 +61,8 @@ module "db" {
   kms_key_id        = var.kms_key_arn
 
   backup_retention_period             = var.backup_retention_days
+  backup_window                       = var.backup_window
+  maintenance_window                  = var.maintenance_window
   deletion_protection                 = var.deletion_protection
   iam_database_authentication_enabled = var.iam_database_authentication
   copy_tags_to_snapshot               = var.copy_tags_to_snapshot
