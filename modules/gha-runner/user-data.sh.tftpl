@@ -1,0 +1,45 @@
+#!/bin/bash
+# Self-hosted GitHub Actions runner bootstrap. The host stays minimal on purpose:
+# it installs Docker + git (so jobs can run inside the per-env ECR toolchain image
+# via `container:`), logs Docker into ECR, then registers the runner agent. All
+# CI tooling (terraform/terragrunt/kubectl/helm/awscli) lives in that image, NOT
+# on the host, so the toolchain is immutable and reproducible.
+set -euxo pipefail
+
+REGION="${region}"
+PAT_SECRET_ARN="${pat_secret_arn}"
+GH_OWNER="${github_owner}"
+GH_REPO="${github_repo}"
+LABELS="${runner_labels}"
+RUNNER_NAME="${runner_name}"
+RUNNER_VERSION="${runner_version}"
+ECR_REGISTRY="${ecr_registry}"
+
+dnf install -y docker git jq tar gzip
+systemctl enable --now docker
+
+aws ecr get-login-password --region "$${REGION}" | docker login --username AWS --password-stdin "$${ECR_REGISTRY}"
+
+useradd -m -s /bin/bash runner || true
+usermod -aG docker runner
+install -d -o runner -g runner /home/runner/actions-runner
+cd /home/runner/actions-runner
+curl -sSL -o runner.tar.gz \
+  "https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz"
+tar xzf runner.tar.gz && rm -f runner.tar.gz
+chown -R runner:runner /home/runner/actions-runner
+
+PAT="$(aws secretsmanager get-secret-value --region "$${REGION}" --secret-id "$${PAT_SECRET_ARN}" --query SecretString --output text)"
+REG_TOKEN="$(curl -sSL -X POST \
+  -H "Authorization: Bearer $${PAT}" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/$${GH_OWNER}/$${GH_REPO}/actions/runners/registration-token" | jq -r .token)"
+
+sudo -u runner ./config.sh \
+  --url "https://github.com/$${GH_OWNER}/$${GH_REPO}" \
+  --token "$${REG_TOKEN}" \
+  --name "$${RUNNER_NAME}" \
+  --labels "$${LABELS}" \
+  --unattended --replace
+./svc.sh install runner
+./svc.sh start
