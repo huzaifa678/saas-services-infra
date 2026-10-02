@@ -1,0 +1,63 @@
+name: cluster-bootstrap
+
+# Gated, idempotent (re)apply of the ci-deployer RBAC — the escalation-capable
+# ClusterRole (bind/escalate) that the steady-state deployer runs as. Kubernetes
+# escalation-prevention means creating it needs a cluster-admin, so this job
+# assumes the dedicated `…-gha-cluster-bootstrap` role: the ONLY principal with a
+# cluster-admin EKS access entry. It runs on the in-VPC self-hosted runner inside
+# the per-env toolchain image, so it reaches the private API with no VPN.
+#
+# The full bootstrap layer (IAM/ECR/runner) is applied manually, one-time, by an
+# administrator. This workflow re-applies only the RBAC target, so it needs no IAM
+# rights and can recover the cluster's deployer authorization without a human on
+# Verified Access.
+#
+# Least privilege: manual dispatch only, pinned to the protected Environment
+# (required reviewers), and the role's OIDC trust is locked to that Environment —
+# so an approved deployment is the only way to obtain cluster-admin.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Protected Environment to (re)apply the ci-deployer RBAC in."
+        required: true
+        default: "prod"
+        type: choice
+        options: [dev, test, prod]
+
+permissions:
+  id-token: write # OIDC
+  contents: read
+
+concurrency:
+  group: cluster-bootstrap-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    # The protected-Environment gate (required reviewers) is the human approval;
+    # the cluster-bootstrap role can ONLY be assumed from this Environment's subject.
+    environment: ${{ inputs.environment }}
+    runs-on: [self-hosted, vpc] # in-VPC runner reaches the private K8s API — no VPN
+    container:
+      image: ${{ vars.BOOTSTRAP_IMAGE }}:${{ inputs.environment }} # per-env toolchain
+
+    defaults:
+      run:
+        working-directory: live/${{ inputs.environment }}/bootstrap
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS credentials (OIDC → gated cluster-admin role)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_CLUSTER_BOOTSTRAP }}
+          aws-region: us-east-1
+
+      - name: Init
+        run: terragrunt init -input=false
+
+      - name: Apply ci-deployer RBAC (idempotent)
+        run: terragrunt apply -input=false -lock-timeout=120s -auto-approve -target=module.ci_deployer_rbac

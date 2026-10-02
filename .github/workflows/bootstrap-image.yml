@@ -1,0 +1,61 @@
+name: bootstrap-image
+
+# Builds and pushes the per-env CI toolchain image the self-hosted runner executes
+# jobs inside. Immutable + scanned in ECR — this replaces installing terraform/
+# terragrunt/kubectl/helm on the runner at boot. Run once per env (and again to
+# bump a pinned tool version); the ECR repo is created by the bootstrap layer.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (image is tagged with it)."
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, test, prod]
+
+permissions:
+  id-token: write # OIDC
+  contents: read
+
+concurrency:
+  group: bootstrap-image-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    env:
+      AWS_REGION: us-east-1
+      REPO: saas-${{ inputs.environment }}-bootstrap-runner
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$REGISTRY"
+          echo "registry=$REGISTRY" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        working-directory: layers/bootstrap/docker
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.ecr.outputs.registry }}/${REPO}"
+          SHA_TAG="sha-${GITHUB_SHA::12}"
+          docker build -t "${IMAGE}:${{ inputs.environment }}" -t "${IMAGE}:${SHA_TAG}" .
+          docker push "${IMAGE}:${{ inputs.environment }}"
+          docker push "${IMAGE}:${SHA_TAG}"
