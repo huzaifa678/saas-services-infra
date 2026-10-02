@@ -1,0 +1,6 @@
+# Custom self-hosted runner labels used by the in-VPC bootstrap runner
+# (modules/gha-runner). Declaring them keeps actionlint from flagging the
+# `runs-on: [self-hosted, vpc]` targets in cluster-bootstrap.yml.
+self-hosted-runner:
+  labels:
+    - vpc
