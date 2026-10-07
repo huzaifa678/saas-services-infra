@@ -14,4 +14,10 @@ locals {
   sizing = {
     rds_instance_class = "db.t4g.micro"
   }
+
+  ava = {
+    oidc_issuer = "https://example.eu.auth0.com" # TODO: replacement to be done
+
+    custom_subdomain = "ava.freeeasycrypto.com"
+  }
 }

@@ -8,11 +8,13 @@ include "envcommon" {
   expose         = true
 }
 
-# Supply ava_oidc_client_secret via TF_VAR_ava_oidc_client_secret, never in VCS.
+locals {
+  env = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
+}
+
 inputs = {
-  ava_custom_subdomain = "eks-prod.example.internal"
-  ava_oidc_issuer      = "https://example.eu.auth0.com"
-  ava_oidc_client_id   = ""
+  ava_custom_subdomain = local.env.ava.custom_subdomain
+  ava_oidc_issuer      = local.env.ava.oidc_issuer
 
   # Authenticating a user and then permitting everyone is not zero trust. The
   # module rejects an unconditional `when { true }` permit.

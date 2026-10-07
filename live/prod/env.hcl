@@ -14,4 +14,9 @@ locals {
   capacity_tier = "launch"
 
   sizing = {}
+
+  ava = {
+    oidc_issuer      = "https://example.eu.auth0.com" # TODO: replacement to be done
+    custom_subdomain = "ava.freeeasycrypto.com"
+  }
 }

@@ -162,8 +162,12 @@ Terraform receives **zero** application secrets as `TF_VAR_*` from GitHub. Two p
 | `saas/<env>/stripe-api-key`     | plain string                       | billing-service |
 | `saas/<env>/auth-jwt`           | `{secret, refresh_secret}`         | auth-service |
 | `saas/<env>/opensearch-master`  | `{username, password}`             | 40-observability, 50-addons-helm (elk only) |
-| `saas/<env>/auth0`              | `{client_id, client_secret}`       | 30-edge (Verified Access, prod only) |
+| `saas/<env>/auth0`              | `{client_id, client_secret}`       | 30-edge (Verified Access, test + prod) |
 | `saas/api-gateway-input`        | `{JWT_SECRET}` (pre-existing)      | api-gateway |
+
+> **Wiring Auth0 to the EKS API front door?** See
+> [docs/verified-access-auth0.md](docs/verified-access-auth0.md) for the end-to-end
+> Verified Access ⟷ Auth0 OIDC setup runbook.
 
 Seed them once per environment from your local (gitignored) `secrets.<env>.env`:
 
