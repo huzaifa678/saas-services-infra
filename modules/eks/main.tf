@@ -82,10 +82,6 @@ module "eks" {
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "OVERWRITE"
     }
-    kube-proxy = {
-      resolve_conflicts_on_create = "OVERWRITE"
-      resolve_conflicts_on_update = "OVERWRITE"
-    }
     vpc-cni = {
       before_compute              = true
       resolve_conflicts_on_create = "OVERWRITE"
