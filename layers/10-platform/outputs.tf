@@ -15,5 +15,10 @@ output "eks_nodes_sg_id" {
   value       = module.node_security_group.security_group_id
 }
 
+output "eks_api_endpoint" {
+  description = "EKS API endpoint. Supplied by the EKS layer to the data layer via Terragrunt dependency blocks."
+  value       = module.eks.eks_cluster_endpoint
+}
+
 output "karpenter_interruption_queue_name" { value = module.iam.karpenter_interruption_queue_name }
 output "karpenter_node_role_arn" { value = module.iam.karpenter_node_role_arn }

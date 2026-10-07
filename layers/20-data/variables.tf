@@ -15,6 +15,11 @@ variable "region" {
   default     = "us-east-1"
 }
 
+variable "eks_api_endpoint" {
+  description = "EKS API endpoint. Supplied by the EKS layer to the data layer via Terragrunt dependency blocks."
+  type        = string
+}
+
 variable "capacity_tier" {
   description = "Named capacity/scale tier (cost only). Passed through to guardrails; null => the env's default rung."
   type        = string

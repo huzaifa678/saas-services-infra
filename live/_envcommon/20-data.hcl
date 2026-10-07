@@ -28,5 +28,6 @@ inputs = {
   private_subnets                   = dependency.network.outputs.private_subnets
   kms_key_arn                       = dependency.network.outputs.kms_key_arn
   eks_nodes_sg_id                   = dependency.platform.outputs.eks_nodes_sg_id
+  eks_api_endpoint                  = dependency.platform.outputs.eks_api_endpoint
   karpenter_interruption_queue_name = dependency.platform.outputs.karpenter_interruption_queue_name
 }

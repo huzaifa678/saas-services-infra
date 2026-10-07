@@ -72,6 +72,7 @@ output "gitops_contract" {
       name                         = var.cluster_name
       region                       = var.region
       karpenter_interruption_queue = var.karpenter_interruption_queue_name
+      eks_api_endpoint             = var.eks_api_endpoint
     }
     databases = {
       for k, m in module.rds : k => {
