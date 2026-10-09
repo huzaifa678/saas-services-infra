@@ -8,7 +8,9 @@ include "envcommon" {
   expose         = true
 }
 
-# test: private endpoint — the in-VPC runner is the CI path to the API.
+# ECR + OIDC roles only; no infra dependency. The account-wide GitHub OIDC
+# provider is owned by dev's bootstrap, so this env does NOT create it — the ARN
+# is auto-derived from the account id (no value to copy). Apply dev first.
 inputs = {
-  runner_instance_type = "t3.medium"
+  create_oidc_provider = false
 }
