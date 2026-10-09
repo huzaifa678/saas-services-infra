@@ -52,6 +52,9 @@ Reusable building blocks in `modules/`, composed by the layers in `layers/`:
 | `modules/observability` | Observability facade — picks `elk` or `grafana` per env |
 | `modules/otel` | OpenTelemetry Collector (K8s DaemonSet) |
 | `modules/iam` | Shared IAM (VPC flow-log role, etc.) |
+| `modules/gha-oidc` / `modules/bootstrap-ecr` | GitHub OIDC provider + scoped CI roles; the toolchain ECR repo (the `bootstrap` layer) |
+| `modules/runner-vpc` / `modules/gha-runner` / `modules/runner-peering` | Isolated runner VPC; the self-hosted runner; peering to the app VPC for private EKS API reach (the `runner` layer) |
+| `modules/ci-deployer-rbac` | The escalation-capable ci-deployer ClusterRole (the `45-rbac` layer) |
 
 ---
 
@@ -119,6 +122,12 @@ make svc-render
 
 CI never applies from a laptop for shared envs — see the workflows below. Secrets are
 **not** passed on the command line; see [Secrets](#secrets--no-secret-is-passed-from-cigithub).
+
+> **Standing up a new environment?** The CI substrate is three one-time layers:
+> `bootstrap` (ECR + OIDC roles — no deps, applied first), `runner` (isolated runner
+> VPC + self-hosted runner, peered to the app VPC) and `45-rbac` (EKS access entries +
+> ci-deployer RBAC — after `10-platform` + `bootstrap`). See the
+> [bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md).
 
 ---
 
@@ -276,7 +285,10 @@ by dependency blocks. `root.hcl` generates the S3 backend + base AWS provider fo
 │   ├── 20-data/                 # RDS (per service), ElastiCache Redis, MSK Kafka
 │   ├── 30-edge/                 # NLB + AWS Verified Access (prod Zero-Trust)
 │   ├── 40-observability/        # OpenSearch (elk) / Managed Grafana+Prometheus
-│   └── 50-addons-helm/          # Helm addons: NGINX, ArgoCD, Keycloak, OTel, ...
+│   ├── 45-rbac/                 # EKS access entries + ci-deployer RBAC (one-time)
+│   ├── 50-addons-helm/          # Helm addons: NGINX, ArgoCD, Keycloak, OTel, ...
+│   ├── bootstrap/               # One-time CI identity: ECR + OIDC roles (no deps)
+│   └── runner/                  # One-time: isolated runner VPC + self-hosted runner
 │
 ├── live/                        # Terragrunt units (env-by-directory)
 │   ├── _envcommon/              # Shared per-layer config (deps, mock_outputs)
