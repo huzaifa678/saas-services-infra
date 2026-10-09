@@ -2,6 +2,10 @@ output "vpc_id" { value = module.vpc.vpc_id }
 output "vpc_cidr" { value = var.vpc_cidr }
 output "public_subnets" { value = module.vpc.public_subnets }
 output "private_subnets" { value = module.vpc.private_subnets }
+output "private_route_table_ids" {
+  description = "Private route tables. The runner-peering module adds the return route to the runner VPC here."
+  value       = module.vpc.private_route_table_ids
+}
 output "azs" { value = local.azs }
 
 output "nat_public_ips" {
@@ -10,7 +14,7 @@ output "nat_public_ips" {
 }
 
 output "kms_key_arn" {
-  description = "Shared customer-managed key. Encrypts EKS secrets, RDS, MSK, Redis, ECR and logs."
+  description = "Shared customer-managed key. Encrypts EKS secrets, RDS, MSK, Redis and logs. (ECR has its own CMK in 05-ecr.)"
   value       = aws_kms_key.main.arn
 }
 
@@ -22,10 +26,6 @@ output "cluster_name" {
 output "name_prefix" {
   description = "Guardrails <project>-<env> prefix, for tagging and logical names."
   value       = module.guardrails.name_prefix
-}
-
-output "ecr_repository_urls" {
-  value = { for k, v in aws_ecr_repository.services : k => v.repository_url }
 }
 
 output "schema_registry_arn" { value = aws_glue_registry.schema_registry.arn }
