@@ -91,6 +91,7 @@ jobs:
       matrix:
         layer:
           - 00-network
+          - 05-ecr
           - 10-platform
           - 20-data
           - 30-edge

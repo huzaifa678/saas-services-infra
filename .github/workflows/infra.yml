@@ -1,5 +1,9 @@
 name: infra
 
+# bootstrap, 45-rbac and runner are intentionally NOT here: they need the
+# cluster-bootstrap role / the private EKS API and are driven by
+# cluster-bootstrap.yml (45-rbac) or applied out-of-band (bootstrap, runner).
+
 on:
   workflow_dispatch:
     inputs:
@@ -9,131 +13,88 @@ on:
         default: "dev"
         type: choice
         options: [dev, test, prod]
-      layer:
-        description: "Target layer"
+      target:
+        description: "Apply the full ordered sequence (all) or a single layer"
         required: true
-        type: string
-  workflow_run:
-    workflows: []
-    branches: [main]
+        default: "all"
+        type: choice
+        options:
+          - all
+          - 00-network
+          - 05-ecr
+          - 10-platform
+          - 20-data
+          - 30-edge
+          - 40-observability
+          - 50-addons-helm
 
 jobs:
-  root:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+  l00-network:
+    name: 00-network
+    if: ${{ always() && !cancelled() && (inputs.target == 'all' || inputs.target == '00-network') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 00-network
+    secrets: inherit
 
-    defaults:
-      run:
-        working-directory: live/${{ inputs.environment }}/${{ inputs.layer }}
+  l05-ecr:
+    name: 05-ecr
+    needs: l00-network
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l00-network.result == 'success') || inputs.target == '05-ecr') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 05-ecr
+    secrets: inherit
 
-    permissions:
-      id-token: write
-      contents: read
+  l10-platform:
+    name: 10-platform
+    needs: l05-ecr
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l05-ecr.result == 'success') || inputs.target == '10-platform') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 10-platform
+    secrets: inherit
 
-    outputs:
-      ecr_auth:         ${{ steps.outputs.outputs.ecr_auth }}
-      ecr_subscription: ${{ steps.outputs.outputs.ecr_subscription }}
-      ecr_billing:      ${{ steps.outputs.outputs.ecr_billing }}
+  l20-data:
+    name: 20-data
+    needs: l10-platform
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l10-platform.result == 'success') || inputs.target == '20-data') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 20-data
+      publish_contract: true
+    secrets: inherit
 
-    steps:
-      - uses: actions/checkout@v6
+  l30-edge:
+    name: 30-edge
+    needs: l20-data
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l20-data.result == 'success') || inputs.target == '30-edge') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 30-edge
+    secrets: inherit
 
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region:     us-east-1
+  l40-observability:
+    name: 40-observability
+    needs: l30-edge
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l30-edge.result == 'success') || inputs.target == '40-observability') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 40-observability
+    secrets: inherit
 
-      - name: Setup Terragrunt
-        uses: ./.github/actions/setup-terragrunt
-
-      - name: Apply layer
-        run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }}
-
-      # Publish the GitOps contract for the CD repo to consume. Both delivery
-      # modes are fed so either can be selected in the CD repo without a re-apply
-      # (see CD docs/gitops-contract-delivery-modes.md):
-      #   render mode -> SSM parameter, fetched by scripts/render_gitops.py
-      #   eso mode    -> Secrets Manager saas/<env>/infra-contract, read by
-      #                  External Secrets at runtime (DB creds already live in the
-      #                  per-DB secrets modules/rds creates).
-      - name: Publish GitOps contract to SSM (render mode)
-        if: ${{ inputs.layer == '20-data' }}
-        run: |
-          CONTRACT=$(terraform output -json gitops_contract)
-          aws ssm put-parameter \
-            --name "/saas/${{ inputs.environment }}/gitops-contract" \
-            --type SecureString --tier Intelligent-Tiering --overwrite \
-            --value "$CONTRACT"
-
-      - name: Publish infra-contract to Secrets Manager (eso mode)
-        if: ${{ inputs.layer == '20-data' }}
-        env:
-          ENV: ${{ inputs.environment }}
-        run: |
-          set -euo pipefail
-          CONTRACT=$(terraform output -json gitops_contract)
-          # The non-DB identity slice ESO consumers read (cluster name, karpenter
-          # queue, keycloak host, plus region/registry/redis/kafka for future use).
-          # Master DB credentials are NOT copied here — they stay in the per-DB
-          # Secrets Manager secrets that modules/rds provisions.
-          INFRA_CONTRACT=$(echo "$CONTRACT" | jq -c '{
-            cluster_name: .cluster.name,
-            region: .cluster.region,
-            karpenter_interruption_queue: .cluster.karpenter_interruption_queue,
-            registry_url: .registry.url,
-            keycloak_db_host: ((.databases.keycloak.endpoint // "") | split(":")[0]),
-            redis_endpoint: .redis.endpoint,
-            redis_port: (.redis.port | tostring),
-            kafka_bootstrap_brokers_sasl_iam: .kafka.bootstrap_brokers_sasl_iam
-          }')
-          SECRET_ID="saas/${ENV}/infra-contract"
-          if aws secretsmanager describe-secret --secret-id "$SECRET_ID" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value \
-              --secret-id "$SECRET_ID" --secret-string "$INFRA_CONTRACT"
-          else
-            aws secretsmanager create-secret \
-              --name "$SECRET_ID" \
-              --description "GitOps contract identity slice for the eso delivery mode (CD repo)" \
-              --secret-string "$INFRA_CONTRACT"
-          fi
-
-      - name: capture ECR outputs
-        id: outputs
-        run: |
-          ECR_URLS=$(terraform output -json ecr_repository_urls)
-          echo "ecr_auth=$(echo $ECR_URLS         | jq -r '.["auth-service"]')"         >> $GITHUB_OUTPUT
-          echo "ecr_subscription=$(echo $ECR_URLS | jq -r '.["subscription-service"]')" >> $GITHUB_OUTPUT
-          echo "ecr_billing=$(echo $ECR_URLS      | jq -r '.["billing-service"]')"      >> $GITHUB_OUTPUT
-
-  service-modules:
-    needs: root
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-
-    defaults:
-      run:
-        working-directory: live/${{ inputs.environment }}/${{ matrix.service }}
-
-    permissions:
-      id-token: write
-      contents: read
-
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [api-gateway, auth-service, billing-service, subscription-service]
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region:     us-east-1
-
-      - name: Set Terragrunt
-        uses: ./.github/actions/setup-terragrunt
-
-      - name: Apply layer
-        run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }}
+  l50-addons-helm:
+    name: 50-addons-helm
+    needs: l40-observability
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l40-observability.result == 'success') || inputs.target == '50-addons-helm') }}
+    uses: ./.github/workflows/_apply-layer.yml
+    with:
+      environment: ${{ inputs.environment }}
+      layer: 50-addons-helm
+    secrets: inherit

@@ -8,10 +8,9 @@ include "envcommon" {
   expose         = true
 }
 
-# prod: private-only endpoint fronted by Verified Access for humans; the in-VPC
-# runner is the sole CI path to the API. The bootstrap Environment defaults to
-# "prod" — protect it with required reviewers so the gated cluster-admin role can
-# only be assumed through an approved deployment.
+# ECR + OIDC roles only; no infra dependency. The account-wide GitHub OIDC
+# provider is owned by dev's bootstrap, so this env does NOT create it — the ARN
+# is auto-derived from the account id (no value to copy). Apply dev first.
 inputs = {
-  runner_instance_type = "t3.medium"
+  create_oidc_provider = false
 }
