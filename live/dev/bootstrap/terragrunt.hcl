@@ -8,8 +8,9 @@ include "envcommon" {
   expose         = true
 }
 
-# dev: public-endpoint cluster, so the runner is optional. The RBAC split + OIDC
-# roles still apply so dev mirrors test/prod. Keep the runner small.
+# ECR + OIDC provider/roles only; no infra dependency, applied first.
+# dev OWNS the single account-wide GitHub OIDC provider (there can be only one per
+# account). Apply dev's bootstrap before test/prod's, which reference it.
 inputs = {
-  runner_instance_type = "t3.small"
+  create_oidc_provider = true
 }

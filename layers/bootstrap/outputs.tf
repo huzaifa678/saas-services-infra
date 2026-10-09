@@ -3,13 +3,14 @@ output "toolchain_repository_url" {
   value       = module.ecr.repository_url
 }
 
-output "runner_pat_secret_arn" {
-  description = "Seed the GitHub registration PAT here (out-of-band), then cycle the ASG."
-  value       = module.runner.pat_secret_arn
+output "ecr_repository_arn" {
+  description = "Toolchain ECR repo ARN; the runner layer grants its instance role pull on this."
+  value       = module.ecr.repository_arn
 }
 
-output "runner_asg_name" {
-  value = module.runner.asg_name
+output "bootstrap_kms_key_arn" {
+  description = "The dedicated CMK encrypting the toolchain ECR repo."
+  value       = aws_kms_key.bootstrap.arn
 }
 
 output "gha_tf_plan_role_arn" {
@@ -28,8 +29,4 @@ output "gha_cluster_bootstrap_role_arn" {
 
 output "github_oidc_provider_arn" {
   value = module.oidc.oidc_provider_arn
-}
-
-output "deployer_group" {
-  value = var.deployer_group
 }

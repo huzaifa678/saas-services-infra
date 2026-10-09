@@ -63,6 +63,15 @@ locals {
       topics          = ["*"]
       consumer_groups = ["*"]
     }
+    # usage-service ETL under Airflow (Option A): the Kafka consumer stage runs as a
+    # KubernetesPodOperator pod in the `airflow` namespace via the `usage-etl` SA.
+    # (Alternative to usage-ingest/usage-etl above, which is the Option B KEDA consumer.)
+    "usage-etl-airflow" = {
+      namespace       = "airflow"
+      service_account = "usage-etl"
+      topics          = ["*"]
+      consumer_groups = ["*"]
+    }
     # OTel Collector: buffers all services' logs onto the otel-logs topic
     # (producer, every env) and drains it back to Loki in dev (consumer group
     # otel-logs-loki). Deployed by saas-chart into the saas-apps namespace.

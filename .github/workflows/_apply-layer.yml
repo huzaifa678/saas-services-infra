@@ -1,0 +1,89 @@
+name: _apply-layer
+
+# Reusable building block: apply exactly ONE layer in ONE environment, non-
+# interactively. Called once per layer by infra.yml so each layer is its own job
+# (isolated, independently re-runnable) rather than one monolithic apply. The
+# 20-data call also publishes the GitOps contract both delivery modes consume.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: string
+      layer:
+        description: "Layer directory under live/<env>/"
+        required: true
+        type: string
+      publish_contract:
+        description: "Publish the GitOps contract after apply (20-data only)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region:     us-east-1
+
+      - name: Setup Terragrunt
+        uses: ./.github/actions/setup-terragrunt
+
+      - name: Apply ${{ inputs.layer }}
+        run: make apply ENV=${{ inputs.environment }} LAYER=${{ inputs.layer }} TG_ARGS="-auto-approve"
+
+      # ── GitOps contract publish (render + eso modes). 20-data only. ──────────
+      # See CD docs/gitops-contract-delivery-modes.md. Master DB creds are NOT
+      # copied here — they stay in the per-DB secrets modules/rds creates.
+      - name: Publish GitOps contract to SSM (render mode)
+        if: ${{ inputs.publish_contract }}
+        run: |
+          set -euo pipefail
+          CONTRACT=$(terragrunt output -json gitops_contract \
+            --working-dir live/${{ inputs.environment }}/${{ inputs.layer }})
+          aws ssm put-parameter \
+            --name "/saas/${{ inputs.environment }}/gitops-contract" \
+            --type SecureString --tier Intelligent-Tiering --overwrite \
+            --value "$CONTRACT"
+
+      - name: Publish infra-contract to Secrets Manager (eso mode)
+        if: ${{ inputs.publish_contract }}
+        env:
+          ENV: ${{ inputs.environment }}
+          LAYER: ${{ inputs.layer }}
+        run: |
+          set -euo pipefail
+          CONTRACT=$(terragrunt output -json gitops_contract --working-dir "live/${ENV}/${LAYER}")
+          INFRA_CONTRACT=$(echo "$CONTRACT" | jq -c '{
+            cluster_name: .cluster.name,
+            region: .cluster.region,
+            karpenter_interruption_queue: .cluster.karpenter_interruption_queue,
+            registry_url: .registry.url,
+            keycloak_db_host: ((.databases.keycloak.endpoint // "") | split(":")[0]),
+            redis_endpoint: .redis.endpoint,
+            redis_port: (.redis.port | tostring),
+            kafka_bootstrap_brokers_sasl_iam: .kafka.bootstrap_brokers_sasl_iam
+          }')
+          SECRET_ID="saas/${ENV}/infra-contract"
+          if aws secretsmanager describe-secret --secret-id "$SECRET_ID" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value \
+              --secret-id "$SECRET_ID" --secret-string "$INFRA_CONTRACT"
+          else
+            aws secretsmanager create-secret \
+              --name "$SECRET_ID" \
+              --description "GitOps contract identity slice for the eso delivery mode (CD repo)" \
+              --secret-string "$INFRA_CONTRACT"
+          fi

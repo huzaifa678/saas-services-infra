@@ -6,9 +6,10 @@ ENV        ?= dev
 LAYER      ?=
 LIVE       := live/$(ENV)
 UNIT       := live/$(ENV)/$(LAYER)
-LAYERS     := 00-network 10-platform 20-data 30-edge 40-observability 50-addons-helm
+LAYERS     := 00-network 05-ecr 10-platform 20-data 30-edge 40-observability 45-rbac 50-addons-helm bootstrap runner
 MODULES    := guardrails node-security-group data-security-groups verified-access \
-              eks iam rds msk elasticache observability k8s-and-helm otel grafana elk
+              eks iam rds msk elasticache observability k8s-and-helm otel grafana elk \
+              runner-vpc runner-peering ecr kms
 POLICY_DIR := policy
 
 .PHONY: help
@@ -81,17 +82,26 @@ plan:
 	terragrunt plan --working-dir $(UNIT)
 
 .PHONY: apply
-apply: 
+apply:
 	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
-	terragrunt apply --working-dir $(UNIT)
+	terragrunt apply --working-dir $(UNIT) $(TG_ARGS)
+
+.PHONY: destroy
+destroy:
+	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
+	terragrunt destroy --working-dir $(UNIT) $(TG_ARGS)
 
 .PHONY: plan-all
-plan-all: 
+plan-all:
 	terragrunt run-all plan --working-dir $(LIVE) --non-interactive
 
 .PHONY: apply-all
 apply-all:
 	terragrunt run-all apply --working-dir $(LIVE)
+
+.PHONY: destroy-all
+destroy-all:
+	terragrunt run-all destroy --working-dir $(LIVE)
 
 # ── Services (separate tree: live/services/<env>/<service>) ───────────────────
 .PHONY: svc-plan

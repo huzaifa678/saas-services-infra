@@ -18,6 +18,7 @@ dependency "platform" {
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
     eks_nodes_sg_id                   = "sg-mock"
+    eks_api_endpoint                  = "https://mock.eks.amazonaws.com"
     karpenter_interruption_queue_name = "saas-eks-mock-karpenter-interruption"
   }
 }

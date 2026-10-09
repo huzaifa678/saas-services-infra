@@ -31,7 +31,7 @@ resource "aws_ecr_repository" "runner" {
   tags = merge(var.tags, { Name = var.repository_name })
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 

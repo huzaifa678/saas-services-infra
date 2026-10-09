@@ -36,8 +36,6 @@ locals {
 
   ordered_public_subnets  = sort(var.public_subnets)
   ordered_private_subnets = sort(var.private_subnets)
-
-  services = ["api-gateway", "auth-service", "subscription-service", "billing-service", "usage-service"]
 }
 
 resource "aws_kms_key" "main" {
@@ -178,24 +176,6 @@ module "vpc" {
   }
 
   tags = { Name = "${var.cluster_name}-vpc" }
-}
-
-resource "aws_ecr_repository" "services" {
-  for_each = toset(local.services)
-
-  name                 = each.key
-  image_tag_mutability = module.guardrails.security.ecr_immutable_tags ? "IMMUTABLE" : "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = module.guardrails.security.ecr_scan_on_push
-  }
-
-  encryption_configuration {
-    encryption_type = module.guardrails.security.ecr_kms_encryption ? "KMS" : "AES256"
-    kms_key         = module.guardrails.security.ecr_kms_encryption ? aws_kms_key.main.arn : null
-  }
-
-  tags = { Name = each.key }
 }
 
 resource "aws_glue_registry" "schema_registry" {

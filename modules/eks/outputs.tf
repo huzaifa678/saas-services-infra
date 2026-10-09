@@ -19,6 +19,11 @@ output "oidc_provider_arn" {
   value = module.eks.oidc_provider_arn
 }
 
+output "cluster_security_group_id" {
+  description = "EKS-managed cluster security group on the control-plane ENIs; peered CI must be allowed 443 against it."
+  value       = module.eks.cluster_security_group_id
+}
+
 output "oidc_issuer" {
   value = module.eks.cluster_oidc_issuer_url
 }

@@ -7,10 +7,11 @@ name: cluster-bootstrap
 # cluster-admin EKS access entry. It runs on the in-VPC self-hosted runner inside
 # the per-env toolchain image, so it reaches the private API with no VPN.
 #
-# The full bootstrap layer (IAM/ECR/runner) is applied manually, one-time, by an
-# administrator. This workflow re-applies only the RBAC target, so it needs no IAM
-# rights and can recover the cluster's deployer authorization without a human on
-# Verified Access.
+# The 45-rbac layer (EKS access entries + ci-deployer RBAC) is applied one-time by
+# an administrator (or the gated role); the bootstrap layer (IAM/ECR/runner) is
+# applied separately and earlier. This workflow re-applies only the RBAC target in
+# 45-rbac, so it needs no IAM rights and can recover the cluster's deployer
+# authorization without a human on Verified Access.
 #
 # Least privilege: manual dispatch only, pinned to the protected Environment
 # (required reviewers), and the role's OIDC trust is locked to that Environment —
@@ -45,7 +46,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: live/${{ inputs.environment }}/bootstrap
+        working-directory: live/${{ inputs.environment }}/45-rbac
 
     steps:
       - uses: actions/checkout@v6
