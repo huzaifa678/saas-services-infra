@@ -15,6 +15,11 @@ output "eks_nodes_sg_id" {
   value       = module.node_security_group.security_group_id
 }
 
+output "cluster_security_group_id" {
+  description = "EKS cluster security group; the runner-peering module adds a 443 ingress from the runner CIDR."
+  value       = module.eks.cluster_security_group_id
+}
+
 output "eks_api_endpoint" {
   description = "EKS API endpoint. Supplied by the EKS layer to the data layer via Terragrunt dependency blocks."
   value       = module.eks.eks_cluster_endpoint
