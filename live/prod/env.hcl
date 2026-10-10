@@ -16,7 +16,7 @@ locals {
   sizing = {}
 
   ava = {
-    oidc_issuer      = "https://example.eu.auth0.com" # TODO: replacement to be done
+    oidc_issuer      = "dev-oqegk1bhhostcaj0.us.auth0.com" # TODO: replacement to be done
     custom_subdomain = "ava.freeeasycrypto.com"
   }
 }
