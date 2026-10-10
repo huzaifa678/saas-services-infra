@@ -62,10 +62,11 @@ module "eks" {
   eks_nodes_sg_id  = module.node_security_group.security_group_id
   ebs_csi_role_arn = module.iam.ebs_csi_role_arn
 
-  # Cluster admin is granted via access entries (AmazonEKSClusterAdminPolicy),
-  # not the creator-admin bootstrap flag. The caller role is always an admin;
-  # add break-glass / platform-admin role ARNs here.
-  cluster_admin_principal_arns = var.cluster_admin_principal_arns
+  # Cluster admin is granted via explicit access entries (AmazonEKSClusterAdmin
+  # Policy), not the creator-admin bootstrap flag and by default not the
+  # Terraform caller either.
+  include_caller_as_cluster_admin = var.include_caller_as_cluster_admin
+  cluster_admin_principal_arns    = var.cluster_admin_principal_arns
 
   # The EKS module takes a single instance type; guardrails hands out a list so a
   # future migration to a mixed-instance node group needs no interface change.

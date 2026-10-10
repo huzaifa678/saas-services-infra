@@ -9,6 +9,8 @@ include "envcommon" {
 }
 
 # Cluster RBAC + EKS access entries. Applied by the gated cluster-bootstrap role
-# (or the human bootstrapper) because the ci-deployer RBAC needs cluster-admin on
-# first apply. The cluster-bootstrap workflow re-applies -target=module.ci_deployer_rbac.
+# because the ci-deployer RBAC needs cluster-admin on first apply — that role is
+# granted admin at platform time (10-platform cluster_admin_principal_arns), so the
+# cluster-bootstrap workflow can first-apply the full layer (scope: full-layer) and
+# re-apply -target=module.ci_deployer_rbac (scope: rbac-only) for recovery.
 inputs = {}
