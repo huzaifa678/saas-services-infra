@@ -21,10 +21,26 @@ on:
         required: false
         default: false
         type: boolean
+      runs_on:
+        description: "JSON array of runner labels. Default GitHub-hosted; the cluster-
+          facing layer (50-addons-helm) passes the in-VPC self-hosted runner."
+        required: false
+        default: '["ubuntu-latest"]'
+        type: string
+      run_in_toolchain:
+        description: "Run inside the per-env ECR toolchain image (needed on the self-
+          hosted runner; the image already carries terraform/terragrunt)."
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   apply:
-    runs-on: ubuntu-latest
+    # Default: GitHub-hosted (public AWS APIs only). 50-addons-helm overrides to
+    # [self-hosted, vpc] + the toolchain container, the only path that reaches a
+    # PRIVATE EKS endpoint same as cluster-bootstrap.yml.
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
+    container: ${{ inputs.run_in_toolchain && fromJSON(format('{{"image":"{0}:{1}"}}', vars.BOOTSTRAP_IMAGE, inputs.environment)) || fromJSON('null') }}
     environment: ${{ inputs.environment }}
 
     permissions:
@@ -39,7 +55,10 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region:     us-east-1
 
+      # The toolchain image already pins terragrunt/terraform; only install it on
+      # the GitHub-hosted path.
       - name: Setup Terragrunt
+        if: ${{ !inputs.run_in_toolchain }}
         uses: ./.github/actions/setup-terragrunt
 
       - name: Apply ${{ inputs.layer }}

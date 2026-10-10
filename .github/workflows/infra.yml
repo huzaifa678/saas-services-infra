@@ -97,4 +97,8 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
       layer: 50-addons-helm
+      # Only cluster-facing layer (helm/kubectl providers) -> must reach the
+      # private EKS API, so it runs on the in-VPC runner inside the toolchain image.
+      runs_on: '["self-hosted", "vpc"]'
+      run_in_toolchain: true
     secrets: inherit
