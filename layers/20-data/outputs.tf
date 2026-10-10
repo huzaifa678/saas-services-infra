@@ -68,6 +68,9 @@ output "gitops_contract" {
   sensitive   = true
   value = {
     version = 1
+    # CD-facing environment name (infra "test" tier -> "staging"). The renderer
+    # uses this to write the correct per-env paths/filenames.
+    environment = local.gitops_env
     cluster = {
       name                         = var.cluster_name
       region                       = var.region

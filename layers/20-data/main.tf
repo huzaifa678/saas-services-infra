@@ -31,6 +31,11 @@ locals {
   sizing   = module.guardrails.sizing
   tags     = module.guardrails.common_tags
 
+  # Env name the CD repo uses in the GitOps contract. Infra calls the staging tier
+  # "test"; the CD repo (overlays, values-<env>.generated.yaml, gateway hosts) calls
+  # it "staging". Publish the CD-facing name so the renderer writes the right paths.
+  gitops_env = var.environment == "test" ? "staging" : var.environment
+
   # Kubernetes workloads granted MSK access via Pod Identity. Keys are arbitrary
   # labels; namespace/service_account must match the deployed pods (Helm charts
   # land in saas-apps; the usage-etl KEDA consumer lives in usage-etl). Topics and
