@@ -128,3 +128,83 @@ drop the role, breaking everything bound to it.
 5. Trigger the GitOps refresh: `argocd app sync pod-identity-refresh`
    (see `infra/base/pod-identity-refresh/` in the gitops repo).
 6. Promote to `test`, then `prod`, repeating steps 4–5.
+
+---
+
+# `teardown.sh` — pre-destroy cleanup
+
+Cleans up the AWS resources that are **not** managed by Terraform/Terragrunt so a
+subsequent `terragrunt run-all destroy` (or `make destroy-all ENV=<env>`) actually
+completes instead of hanging on `DependencyViolation`.
+
+Several things in a running env are created outside the TF graph and therefore are
+never removed by `destroy`. Left behind, they keep the VPC / subnets / security
+groups in use:
+
+- **NLBs** created by Kubernetes `type: LoadBalancer` Services (the per-namespace
+  `nginx-gateway-lb` Services + anything the apps expose) — each holds ENIs.
+- **EC2 nodes Karpenter provisions** out-of-band (not a TF node group) — primary +
+  VPC-CNI secondary ENIs, and they keep the cluster/node SGs in use.
+- **Leftover "available" ENIs** and LB-created security groups after the above.
+- **ECR repositories that still hold images** (repos are `force_delete = false`).
+- **RDS instances with `deletion_protection = true`** (on in test/prod per guardrails).
+
+ArgoCD would recreate anything we delete, so the script stops its controllers first
+but leaves the AWS Load Balancer Controller + Karpenter running to deprovision
+gracefully.
+
+---
+
+## What it does
+
+| Step | Action | Why |
+| --- | --- | --- |
+| 0 | Resolve cluster/VPC/region from `10-platform` / `00-network` outputs + `env.hcl`; require typing the cluster name | Safety; targets the right account/env |
+| 1 | Scale down the ArgoCD app / appset controllers, strip Argo finalizers | Stop GitOps reconciliation recreating deletions |
+| 2 | Delete all `type: LoadBalancer` Services, wait for the ELBv2 objects to clear | Remove NLBs + their ENIs via the LB controller |
+| 3 | Delete Karpenter `NodePools` / `NodeClaims`, scale Karpenter to 0, wait for instances to terminate | Free node ENIs; stop re-provisioning |
+| 4 | Delete Crossplane `AppDatabase` / `AppCache` claims | Let Crossplane deprovision out-of-band AWS resources |
+| 5 | AWS sweep: leftover ELBv2 LBs/target groups, LB-controller SGs, **stale available ENIs** | The classic VPC/subnet/SG destroy blockers |
+| 6 | Empty the ECR repositories (`05-ecr` repos + `saas-<env>-bootstrap-runner`) | Non-empty repos refuse to delete |
+| 7 | Disable RDS `deletion_protection` for the env | Lets the DB instances be destroyed |
+| 8 | Print (or run) the destroy | Hand off to `terragrunt run-all destroy` |
+
+Only after this does the layer destroy run — reverse dependency order is handled by
+`terragrunt run-all destroy` / `make destroy-all`.
+
+---
+
+## Usage
+
+```bash
+# cleanup only, then print the next step (default)
+scripts/teardown.sh test
+
+# cleanup, then run terragrunt run-all destroy for the env
+RUN_DESTROY=1 scripts/teardown.sh test
+
+# skip the confirmation prompt
+AUTO_APPROVE=1 scripts/teardown.sh test
+
+# cluster already gone: run the AWS sweep (ELB/SG/ENI) only
+SKIP_K8S=1 scripts/teardown.sh test
+
+# override region / per-wait timeout
+REGION=us-west-2 WAIT_SECS=600 scripts/teardown.sh prod
+```
+
+`<env>` is one of `dev | test | prod` and is **required** — there is no default,
+because this is destructive. The script is idempotent: if a subnet/SG/VPC delete
+still fails with `DependencyViolation`, re-run it (the ENI/LB sweep is safe to
+repeat) and retry the destroy.
+
+Run from any directory; the script `cd`s to the repo root itself.
+
+---
+
+## Requirements
+
+- `terragrunt`, `terraform`, `aws` (v2), `kubectl`, `jq`
+- AWS creds for the target account, and reachability to the EKS API for the
+  Kubernetes steps (private-endpoint envs: run from the in-VPC runner, or pass
+  `SKIP_K8S=1` to do only the AWS-level sweep).
