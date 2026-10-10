@@ -16,7 +16,7 @@ locals {
   sizing = {}
 
   ava = {
-    oidc_issuer      = "dev-oqegk1bhhostcaj0.us.auth0.com" 
+    oidc_issuer      = "dev-oqegk1bhhostcaj0.us.auth0.com"
     custom_subdomain = "ava.freeeasycrypto.com"
   }
 }

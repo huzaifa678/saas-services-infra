@@ -9,7 +9,7 @@ include "envcommon" {
 }
 
 locals {
-  env = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
+  env             = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
   ava_oidc_issuer = startswith(local.env.ava.oidc_issuer, "https://") ? local.env.ava.oidc_issuer : "https://${local.env.ava.oidc_issuer}"
 }
 
