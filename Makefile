@@ -91,6 +91,22 @@ destroy:
 	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
 	terragrunt destroy --working-dir $(UNIT) $(TG_ARGS)
 
+# ── Runner registration (GitHub App) ─────────────────────────────────────────
+# One-shot post-apply for the `runner` layer: seed the GitHub App private key and
+# cycle the ASG so the host re-registers with a fresh registration token. The key
+# is read straight into Secrets Manager (never into Terraform state).
+.PHONY: register-runner
+register-runner: ## Seed the runner's GitHub App key + cycle the ASG: make register-runner ENV=test KEY=app-private-key.pem
+	@test -n "$(KEY)" || { echo "KEY is required (path to the GitHub App private-key PEM), e.g. make register-runner ENV=test KEY=app-private-key.pem"; exit 1; }
+	@test -f "$(KEY)" || { echo "KEY file not found: $(KEY)"; exit 1; }
+	@secret_arn=$$(terragrunt output -raw runner_app_key_secret_arn --working-dir $(LIVE)/runner); \
+	 asg=$$(terragrunt output -raw runner_asg_name --working-dir $(LIVE)/runner); \
+	 echo "==> seeding GitHub App key into $$secret_arn"; \
+	 aws secretsmanager put-secret-value --secret-id "$$secret_arn" --secret-string "file://$(KEY)" >/dev/null; \
+	 echo "==> cycling ASG $$asg"; \
+	 aws autoscaling start-instance-refresh --auto-scaling-group-name "$$asg" >/dev/null; \
+	 echo "done: the runner re-registers with a fresh token on next boot"
+
 .PHONY: plan-all
 plan-all:
 	terragrunt run-all plan --working-dir $(LIVE) --non-interactive
