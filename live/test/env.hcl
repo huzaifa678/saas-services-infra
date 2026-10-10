@@ -4,7 +4,10 @@ locals {
   environment = "test"
   region      = "us-east-1"
 
-  auth_provider = "auth-service"
+  # Staging mirrors prod's identity provider (Keycloak). This provisions the
+  # keycloak RDS in 20-data and makes the platform consistent with the CD repo,
+  # which deploys Keycloak + points Backstage at Keycloak OIDC in staging.
+  auth_provider = "keycloak"
   observability = ["elk"]
 
   # Cost-optimised launch footprint for test.
@@ -16,7 +19,7 @@ locals {
   }
 
   ava = {
-    oidc_issuer = "https://example.eu.auth0.com" # TODO: replacement to be done
+    oidc_issuer = "dev-oqegk1bhhostcaj0.us.auth0.com" # TODO: replacement to be done
 
     custom_subdomain = "ava.freeeasycrypto.com"
   }
