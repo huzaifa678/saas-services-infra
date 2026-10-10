@@ -13,6 +13,10 @@ All three are **outside the steady-state run graph**. For the rationale see the 
 READMEs ([bootstrap](../layers/bootstrap/README.md), [runner](../layers/runner/README.md),
 [45-rbac](../layers/45-rbac/README.md)); this is the operational guide.
 
+**See also:** [runner-registration.md](runner-registration.md) (the runner's GitHub App
+auth, ASG self-healing and key rotation) and [apply-layer-workflow.md](apply-layer-workflow.md)
+(how the steady-state `_apply-layer` workflow applies each layer).
+
 ---
 
 ## Why three layers (the dependency split)
@@ -75,9 +79,16 @@ If EKS named its private hosted zone differently from the endpoint FQDN, set
 
 - For `bootstrap`: none.
 - For `runner`: `bootstrap`, `00-network`, `10-platform` applied.
-- For `45-rbac`: `10-platform` + `bootstrap` applied, and you hold cluster-admin on
-  first apply (the platform module's `include_caller_as_cluster_admin = true`).
-- A GitHub PAT with the manage-runners scope (seeded after the `runner` apply).
+- For `45-rbac`: `10-platform` + `bootstrap` applied. No human cluster-admin is
+  needed: `10-platform` grants the gated `cluster-bootstrap` role a cluster-admin
+  access entry at platform time (`cluster_admin_principal_arns`, wired from
+  `bootstrap`), and `include_caller_as_cluster_admin = false` keeps the `tf-apply`
+  caller off admin. So `45-rbac` is first-applied **by the gated role via the
+  `cluster-bootstrap` workflow** (`scope: full-layer`), not from a laptop.
+- The **`SAAS-infra-bot` GitHub App** with repo `administration: write`, installed on the
+  infra repo. Its id + installation id (not secret) are passed to the `runner` apply via
+  env; its private key (PEM) is seeded once into Secrets Manager after the apply. The
+  runner mints short-lived registration tokens from the App — no user PAT.
 
 ---
 
@@ -98,24 +109,29 @@ make apply ENV=test LAYER=bootstrap
 make apply ENV=test LAYER=00-network
 make apply ENV=test LAYER=10-platform
 
-# 3. The runner (own VPC, peered to the app VPC), then register it
+# 3. The runner (own VPC, peered to the app VPC), then register it.
+#    GitHub App id/installation are not secret -> supplied via env for the apply.
+export GHA_RUNNER_APP_ID=<app-id>
+export GHA_RUNNER_APP_INSTALLATION_ID=<installation-id>
 make apply ENV=test LAYER=runner
-cd live/test/runner
-aws secretsmanager put-secret-value \
-  --secret-id "$(terragrunt output -raw runner_pat_secret_arn)" \
-  --secret-string "<github-pat>"
-aws autoscaling start-instance-refresh \
-  --auto-scaling-group-name "$(terragrunt output -raw runner_asg_name)"
-cd -
+# Seed the App private key (PEM) ONCE + cycle the ASG (key goes to Secrets
+# Manager, never Terraform state); the host mints registration tokens from it.
+make register-runner ENV=test KEY=app-private-key.pem
 
-# 4. Cluster wiring (needs cluster-admin on first apply — see note)
-make apply ENV=test LAYER=45-rbac
+# 4. Cluster wiring — first-applied by the gated role via the workflow:
+#    GitHub ▸ Actions ▸ cluster-bootstrap ▸ Run (environment: test, scope: full-layer)
+#    (This runs on the in-VPC self-hosted runner from step 3, so it reaches the
+#     private EKS API; the protected-Environment approval is the only human action.)
 ```
 
-> **Step 4 needs cluster-admin on first apply** (the ci-deployer RBAC holds
-> `bind`/`escalate`). Run it as the human bootstrapper or the gated `cluster-bootstrap`
-> role. Thereafter [`cluster-bootstrap.yml`](../.github/workflows/cluster-bootstrap.yml)
-> re-applies `-target=module.ci_deployer_rbac` in `45-rbac` as the gated role.
+> **Why the workflow, not `make apply`?** The ci-deployer RBAC holds `bind`/`escalate`,
+> so first creation needs a cluster-admin. The gated `cluster-bootstrap` role already
+> holds that (granted at `10-platform` time via `cluster_admin_principal_arns`), so
+> [`cluster-bootstrap.yml`](../.github/workflows/cluster-bootstrap.yml) with
+> `scope: full-layer` applies the entire layer as that role — no human on the cluster.
+> `scope: rbac-only` (the default) later re-applies just `-target=module.ci_deployer_rbac`
+> for idempotent recovery. A manual `make apply ENV=<env> LAYER=45-rbac` remains a
+> break-glass path for an operator who already holds cluster-admin.
 
 ---
 
@@ -137,18 +153,31 @@ validates the federated provider exists when their roles are created.
 
 ---
 
-## Staging toggles (`45-rbac`, all default `true`)
+## Staging toggles (`45-rbac`)
 
-- `create_gated_admin_access_entry` — the `cluster-bootstrap` → cluster-admin access entry.
-- `map_deployer_access_entry` — the `tf-apply` → `ci-deployers` group access entry.
-- `manage_ci_deployer_rbac` — apply the escalation-capable ci-deployer ClusterRole.
+- `create_gated_admin_access_entry` (default **`false`**) — create the `cluster-bootstrap`
+  → cluster-admin access entry **here**. Off by default because `10-platform` now creates
+  it (via `cluster_admin_principal_arns`); set `true` only if platform does not wire the
+  gated role, to avoid a duplicate access-entry conflict.
+- `map_deployer_access_entry` (default `true`) — the `tf-apply` → `ci-deployers` group entry.
+- `manage_ci_deployer_rbac` (default `true`) — apply the escalation-capable ci-deployer ClusterRole.
 
 ---
 
 ## After bootstrap
 
-- Steady-state `infra.yml` runs on `runs-on: [self-hosted, vpc]` inside
-  `${BOOTSTRAP_IMAGE}:<env>`, assuming the `tf-apply` role (the `ci-deployers` group).
-- `cluster-bootstrap.yml` re-applies just the RBAC in `45-rbac` as the gated admin.
-- Once every deploy path uses the `tf-apply` role, flip the platform EKS module's
-  `include_caller_as_cluster_admin = false` to remove the last standing cluster-admin.
+- Steady-state `infra.yml` applies `00-network … 50-addons-helm` via the reusable
+  `_apply-layer.yml`, assuming the `tf-apply` role through GitHub OIDC. That role is
+  **not** cluster-admin — once `45-rbac` has run it acts cluster-side only as the
+  `ci-deployers` group.
+- Runner placement: every layer runs on GitHub-hosted runners **except**
+  `50-addons-helm`, the one layer with helm/kubectl providers. It passes
+  `runs_on: ["self-hosted", "vpc"]` + `run_in_toolchain: true` to `_apply-layer.yml`, so it
+  runs on the in-VPC runner inside `$${BOOTSTRAP_IMAGE}:<env>` and reaches the **private**
+  EKS API — no public endpoint needed in any env.
+- `cluster-bootstrap.yml` is the gated path into `45-rbac`: `scope: full-layer` for the
+  initial apply, `scope: rbac-only` for idempotent recovery — both as the gated role on
+  the in-VPC runner.
+- The last standing cluster-admin is now the **gated `cluster-bootstrap` role only**
+  (`include_caller_as_cluster_admin = false` is the default), assumable solely through an
+  approved deployment to the protected GitHub Environment.
