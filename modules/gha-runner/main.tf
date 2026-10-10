@@ -36,15 +36,16 @@ data "aws_ami" "al2023" {
   }
 }
 
-# PAT for runner registration. Created empty — seed the value out-of-band so no
-# credential is committed:
-#   aws secretsmanager put-secret-value --secret-id <arn> --secret-string <pat>
-# Needs the repo's manage-runners scope; rotated manually (GitHub PATs have no
-# Secrets Manager rotation hook).
-resource "aws_secretsmanager_secret" "runner_pat" {
-  # checkov:skip=CKV2_AWS_57:GitHub PATs have no Secrets Manager rotation hook; rotated manually out-of-band.
-  name                    = "${var.name}-gha-runner-pat"
-  description             = "GitHub PAT the self-hosted runner uses to fetch a registration token."
+# GitHub App private key for runner registration. Created empty — seed the PEM
+# out-of-band once so no credential is committed:
+#   aws secretsmanager put-secret-value --secret-id <arn> \
+#     --secret-string file://app-private-key.pem
+# The App needs repo `administration: write` (to mint runner registration tokens).
+# Rotated only when you roll the App key (no user-PAT expiry to chase).
+resource "aws_secretsmanager_secret" "runner_app_key" {
+  # checkov:skip=CKV2_AWS_57:GitHub App keys have no Secrets Manager rotation hook; rolled manually out-of-band.
+  name                    = "${var.name}-gha-runner-app-key"
+  description             = "GitHub App private key the self-hosted runner uses to mint a registration token."
   kms_key_id              = var.kms_key_arn != "" ? var.kms_key_arn : null
   recovery_window_in_days = var.secret_recovery_window_days
   tags                    = var.tags
@@ -76,10 +77,10 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 
 data "aws_iam_policy_document" "host" {
   statement {
-    sid       = "ReadRunnerPat"
+    sid       = "ReadRunnerAppKey"
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.runner_pat.arn]
+    resources = [aws_secretsmanager_secret.runner_app_key.arn]
   }
   statement {
     sid       = "EcrAuthToken"
@@ -156,14 +157,16 @@ resource "aws_launch_template" "runner" {
   }
 
   user_data = base64encode(templatefile("${path.module}/user-data.sh.tftpl", {
-    region         = data.aws_region.current.region
-    pat_secret_arn = aws_secretsmanager_secret.runner_pat.arn
-    github_owner   = var.github_owner
-    github_repo    = var.github_repo
-    runner_labels  = var.runner_labels
-    runner_name    = "${var.name}-vpc"
-    runner_version = var.runner_version
-    ecr_registry   = var.ecr_registry
+    region             = data.aws_region.current.region
+    app_key_secret_arn = aws_secretsmanager_secret.runner_app_key.arn
+    github_app_id      = var.github_app_id
+    installation_id    = var.github_app_installation_id
+    github_owner       = var.github_owner
+    github_repo        = var.github_repo
+    runner_labels      = var.runner_labels
+    runner_name        = "${var.name}-vpc"
+    runner_version     = var.runner_version
+    ecr_registry       = var.ecr_registry
   }))
 
   tag_specifications {

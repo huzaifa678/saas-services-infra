@@ -54,6 +54,11 @@ module "runner" {
   github_repo   = var.github_repo
   instance_type = var.runner_instance_type
 
+  # GitHub App used to mint runner registration tokens (private key seeded
+  # out-of-band into the secret below; id/installation are not secret).
+  github_app_id              = var.github_app_id
+  github_app_installation_id = var.github_app_installation_id
+
   # Toolchain image repo lives in the bootstrap layer.
   ecr_repository_arn = var.ecr_repository_arn
   ecr_registry       = split("/", var.toolchain_repository_url)[0]

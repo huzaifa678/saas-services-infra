@@ -23,6 +23,24 @@ variable "github_repo" {
   type        = string
 }
 
+# ── GitHub App (runner registration) ─────────────────────────────────────────
+# The runner authenticates as a GitHub App installation, not a user PAT: at boot
+# it signs a short-lived JWT with the App private key, exchanges it for an
+# installation token, then mints a runner registration token. App id and
+# installation id are not secret (passed as vars); only the private key is a
+# secret, seeded once out-of-band into the Secrets Manager secret this module
+# creates. Benefits over a PAT: repo-scoped `administration` permission only, no
+# user-expiry, and not tied to a human account.
+variable "github_app_id" {
+  description = "ID of the SAAS-infra-bot GitHub App used for runner registration."
+  type        = string
+}
+
+variable "github_app_installation_id" {
+  description = "Installation ID of the SAAS-infra-bot GitHub App on the infra repo/org."
+  type        = string
+}
+
 variable "runner_labels" {
   description = "Labels the runner registers with; workflows target them via runs-on."
   type        = string
@@ -52,7 +70,7 @@ variable "ecr_registry" {
 }
 
 variable "kms_key_arn" {
-  description = "CMK for the PAT secret and the root EBS volume. Empty uses AWS-managed keys."
+  description = "CMK for the App private-key secret and the root EBS volume. Empty uses AWS-managed keys."
   type        = string
   default     = ""
 }
@@ -64,7 +82,7 @@ variable "root_volume_size" {
 }
 
 variable "secret_recovery_window_days" {
-  description = "Secrets Manager recovery window for the PAT secret."
+  description = "Secrets Manager recovery window for the App private-key secret."
   type        = number
   default     = 7
 }
