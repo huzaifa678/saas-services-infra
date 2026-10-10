@@ -25,6 +25,7 @@ variable "services" {
     "billing-service",
     "usage-service",
     "agent-service",
+    "backstage-saas"
   ]
 }
 
