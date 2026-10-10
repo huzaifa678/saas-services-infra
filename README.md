@@ -26,10 +26,14 @@ are generated (DB) or read from **Secrets Manager** — none are passed from CI.
 
 **Services deployed to EKS:**
 - `api-gateway` — JWT validation, rate limiting, Redis-backed session
-- `auth-service` — Custom JWT auth (dev) or Keycloak (prod)
+- `auth-service` — Custom JWT auth (the alternative to Keycloak; see `auth_provider`)
 - `subscription-service` — Plan management, Kafka events
 - `billing-service` — Stripe integration, Kafka consumer
-- `usage-service` — Usage tracking
+- `usage-service` — Usage tracking + RAG embedding (Airflow ETL jobs)
+- `agent-service` — LLM agent; publishes token-usage events to Kafka
+
+The developer portal (**Backstage**) and **Keycloak** are deployed from the CD repo;
+this repo provisions their databases/secrets and ECR repos.
 
 ---
 
@@ -43,8 +47,10 @@ Reusable building blocks in `modules/`, composed by the layers in `layers/`:
 | `modules/eks` | EKS cluster, node group, IRSA roles |
 | `modules/node-security-group` / `modules/data-security-groups` | Node + data-tier security groups |
 | `modules/verified-access` | AWS Verified Access (Zero-Trust EKS API front door, prod) |
-| `modules/k8s-and-helm` | Helm releases: NGINX Gateway, cert-manager, external-dns, ArgoCD, Airflow, Keycloak |
+| `modules/k8s-and-helm` | Bootstraps ArgoCD + its App-of-Apps (Karpenter, cert-manager, external-dns, external-secrets, NGINX Gateway, Keycloak, SaaS apps) |
 | `modules/rds` | PostgreSQL RDS instances (one per service); generates the master password → Secrets Manager |
+| `modules/ecr` | Per-env ECR registry — one repo per service/function image, lifecycle policy + CMK (the `05-ecr` layer) |
+| `modules/kms` | Reusable customer-managed KMS key (key + alias + policy); used by `05-ecr` and the `bootstrap` layer |
 | `modules/elasticache` | Redis ElastiCache cluster |
 | `modules/msk` | Amazon MSK (Kafka) |
 | `modules/elk` | OpenSearch domain + IRSA for OTel collector |
@@ -66,16 +72,23 @@ directory under `live/<env>/` holding one thin unit per layer; shared identity l
 
 | Environment | Live tree | Auth | Observability | EKS Access |
 |-------------|-----------|------|---------------|------------|
-| `dev` | `live/dev/` | Custom auth-service | Grafana | Public endpoint (CIDR-allowlisted) |
-| `test` | `live/test/` | Keycloak | ELK | Public endpoint (CIDR-allowlisted) |
-| `prod` | `live/prod/` | Keycloak + Auth0 OIDC | ELK | Private + AWS Verified Access |
+| `dev` | `live/dev/` | Keycloak | ELK | Public endpoint (CIDR-allowlisted) |
+| `test` (staging tier) | `live/test/` | Keycloak | ELK | Private + AWS Verified Access |
+| `prod` | `live/prod/` | Keycloak + Auth0 OIDC | ELK + Grafana | Private + AWS Verified Access |
+
+> **Env naming:** the CD repo (`saas-continious-delivery`) calls the `test` tier **`staging`**
+> (`dev` / `staging` / `prod`). The GitOps contract published from `20-data` carries the
+> CD-facing name (`test` → `staging`) so the CD renderer writes the correct per-env paths.
 
 ### Auth Providers
 
-Two auth strategies are supported via `auth_provider`:
+Two auth strategies are supported via `auth_provider` (all current envs use `keycloak`):
 
-- **`auth-service`** (dev) — Lightweight custom JWT service with its own RDS instance
-- **`keycloak`** (prod) — Full Keycloak deployment on EKS backed by its own RDS instance; federates with Auth0 via OIDC in prod
+- **`keycloak`** — Full Keycloak deployment on EKS; its DB credentials are backed by a
+  dedicated RDS instance (prod points at the RDS directly, dev/staging run the in-cluster
+  Postgres with those creds). Prod federates with Auth0 via OIDC.
+- **`auth-service`** — Lightweight custom JWT service with its own RDS instance (the
+  alternative; not currently selected by any env).
 
 ### Observability Stacks
 
@@ -129,17 +142,27 @@ CI never applies from a laptop for shared envs — see the workflows below. Secr
 > ci-deployer RBAC — after `10-platform` + `bootstrap`). See the
 > [bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md).
 
+> **Tearing down an environment?** Run `scripts/teardown.sh <env>` **before** destroying.
+> It deletes the cluster-created AWS resources Terraform doesn't manage — NLBs from
+> `LoadBalancer` Services, Karpenter nodes, stale ENIs and LB security groups — empties the
+> ECR repos and clears RDS deletion protection, so `make destroy-all ENV=<env>` (or
+> `RUN_DESTROY=1 scripts/teardown.sh <env>`) completes without `DependencyViolation`. See
+> [scripts/SCRIPT.md](scripts/SCRIPT.md#teardownsh--pre-destroy-cleanup).
+
 ---
 
 ## ECR Repositories
 
-The following ECR repositories are provisioned with KMS encryption and immutable tags:
+The **`05-ecr`** layer owns one ECR registry per environment (dedicated CMK, scan-on-push,
+immutable tags), independent of the VPC/cluster lifecycle. One repo per service image:
 
-- `api-gateway`
-- `auth-service`
-- `subscription-service`
-- `billing-service`
-- `usage-service`
+- `api-gateway`, `auth-service`, `subscription-service`, `billing-service`,
+  `usage-service`, `agent-service`, `backstage-saas`
+
+plus the Crossplane composition-function packages (`function-appdatabase`,
+`function-appcache`) and an auto-created `helm/<chart>` repo per chart the CD ApplicationSet
+pushes (`oci://<registry>/helm`). The one-time CI **toolchain** image lives in a separate
+repo — `saas-<env>-bootstrap-runner` (the `bootstrap` layer).
 
 ---
 
@@ -173,6 +196,12 @@ Terraform receives **zero** application secrets as `TF_VAR_*` from GitHub. Two p
 | `saas/<env>/opensearch-master`  | `{username, password}`             | 40-observability, 50-addons-helm (elk only) |
 | `saas/<env>/auth0`              | `{client_id, client_secret}`       | 30-edge (Verified Access, test + prod) |
 | `saas/api-gateway-input`        | `{JWT_SECRET}` (pre-existing)      | api-gateway |
+| `saas/backstage-input`          | `{GITHUB_TOKEN, ARGOCD_AUTH_TOKEN, KEYCLOAK_CLIENT_SECRET}` | `backstage/` module (composed → `backstage-app`) |
+| `saas/<env>/llm-api-keys`       | `{OPENAI_API_KEY, ANTHROPIC_API_KEY}` | usage-service (RAG embedding), agent-service |
+
+The `backstage/` module composes the seeded `saas/backstage-input` plus a generated backend
+key and the derived Keycloak discovery URL into the **`backstage-app`** secret that the CD
+repo's ExternalSecret reads (the Backstage DB half is a separate `modules/rds` secret).
 
 > **Wiring Auth0 to the EKS API front door?** See
 > [docs/verified-access-auth0.md](docs/verified-access-auth0.md) for the end-to-end
@@ -281,6 +310,7 @@ by dependency blocks. `root.hcl` generates the S3 backend + base AWS provider fo
 │
 ├── layers/                      # Source modules, numbered by apply order
 │   ├── 00-network/              # VPC, subnets, NAT, Route53, Glue Schema Registry
+│   ├── 05-ecr/                  # Per-env ECR registry (service + Crossplane-function repos)
 │   ├── 10-platform/             # EKS cluster + node groups
 │   ├── 20-data/                 # RDS (per service), ElastiCache Redis, MSK Kafka
 │   ├── 30-edge/                 # NLB + AWS Verified Access (prod Zero-Trust)
@@ -297,8 +327,9 @@ by dependency blocks. `root.hcl` generates the S3 backend + base AWS provider fo
 │       ├── _envcommon/          # Shared per-service config
 │       └── test/  prod/         # <env>/<service>/terragrunt.hcl
 │
-├── api-gateway/  auth-service/  # Service source modules (ECS/EKS task config +
-│   billing-service/  subscription-service/   Secrets Manager reads)
+├── api-gateway/  auth-service/  billing-service/  subscription-service/
+│   usage-service/  backstage/   # Service source modules — compose each service's
+│                                # app secret in Secrets Manager (read by CD ExternalSecrets)
 │
 ├── modules/                     # Reusable modules (see Modules table)
 │
@@ -307,12 +338,14 @@ by dependency blocks. `root.hcl` generates the S3 backend + base AWS provider fo
 │   └── checkov/                 # Custom Checkov checks
 │
 ├── .github/
-│   ├── workflows/               # infra, infra-validate, infracost, dependabot-auto-merge
+│   ├── workflows/               # infra (+ _apply-layer), infra-validate, infracost,
+│   │                            # cluster-bootstrap, dependabot-auto-merge
 │   └── actions/setup-terragrunt # Pinned terragrunt installer
 │
 ├── atlantis/  atlantis.yaml     # Atlantis (enforced apply gate) config
 ├── migration/                   # One-shot scripts that moved the flat root → layers
-├── scripts/                     # seed-secrets.sh, apply-stepwise.sh, verify-apply.sh
+├── scripts/                     # seed-secrets, verify-apply, apply-stepwise,
+│                                # teardown (pre-destroy cleanup) — see scripts/SCRIPT.md
 ├── secrets.dev.env  secrets.prod.env   # gitignored — local source for seed-secrets.sh
 ├── architecture.svg / .png      # Architecture + Terragrunt delivery diagram (SVG = editable source)
 └── graph.png                    # Terraform dependency graph
