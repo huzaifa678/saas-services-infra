@@ -4,10 +4,17 @@
 # via `container:`), logs Docker into ECR, then registers the runner agent. All
 # CI tooling (terraform/terragrunt/kubectl/helm/awscli) lives in that image, NOT
 # on the host, so the toolchain is immutable and reproducible.
-set -euxo pipefail
+#
+# Registration auth is a GitHub App, not a user PAT: the host signs a short-lived
+# JWT with the App private key (read from Secrets Manager), exchanges it for an
+# installation token, then mints a one-time runner registration token. No
+# long-lived runner credential is ever stored on the box.
+set -euo pipefail
 
 REGION="${region}"
-PAT_SECRET_ARN="${pat_secret_arn}"
+APP_KEY_SECRET_ARN="${app_key_secret_arn}"
+APP_ID="${github_app_id}"
+INSTALLATION_ID="${installation_id}"
 GH_OWNER="${github_owner}"
 GH_REPO="${github_repo}"
 LABELS="${runner_labels}"
@@ -15,7 +22,7 @@ RUNNER_NAME="${runner_name}"
 RUNNER_VERSION="${runner_version}"
 ECR_REGISTRY="${ecr_registry}"
 
-dnf install -y docker git jq tar gzip
+dnf install -y docker git jq tar gzip openssl
 systemctl enable --now docker
 
 aws ecr get-login-password --region "$${REGION}" | docker login --username AWS --password-stdin "$${ECR_REGISTRY}"
@@ -29,9 +36,28 @@ curl -sSL -o runner.tar.gz \
 tar xzf runner.tar.gz && rm -f runner.tar.gz
 chown -R runner:runner /home/runner/actions-runner
 
-PAT="$(aws secretsmanager get-secret-value --region "$${REGION}" --secret-id "$${PAT_SECRET_ARN}" --query SecretString --output text)"
+# ── GitHub App auth. Keep secret material out of the cloud-init log. ──────────
+set +x
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+
+APP_KEY="$(aws secretsmanager get-secret-value --region "$${REGION}" --secret-id "$${APP_KEY_SECRET_ARN}" --query SecretString --output text)"
+
+NOW="$(date +%s)"
+IAT=$((NOW - 60))
+EXP=$((NOW + 540)) # max 10 min; use 9
+HEADER="$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | b64url)"
+PAYLOAD="$(printf '{"iat":%s,"exp":%s,"iss":"%s"}' "$${IAT}" "$${EXP}" "$${APP_ID}" | b64url)"
+UNSIGNED="$${HEADER}.$${PAYLOAD}"
+SIGNATURE="$(printf '%s' "$${UNSIGNED}" | openssl dgst -sha256 -sign <(printf '%s' "$${APP_KEY}") | b64url)"
+JWT="$${UNSIGNED}.$${SIGNATURE}"
+
+INSTALL_TOKEN="$(curl -sSL -X POST \
+  -H "Authorization: Bearer $${JWT}" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/app/installations/$${INSTALLATION_ID}/access_tokens" | jq -r .token)"
+
 REG_TOKEN="$(curl -sSL -X POST \
-  -H "Authorization: Bearer $${PAT}" \
+  -H "Authorization: Bearer $${INSTALL_TOKEN}" \
   -H "Accept: application/vnd.github+json" \
   "https://api.github.com/repos/$${GH_OWNER}/$${GH_REPO}/actions/runners/registration-token" | jq -r .token)"
 
@@ -41,5 +67,9 @@ sudo -u runner ./config.sh \
   --name "$${RUNNER_NAME}" \
   --labels "$${LABELS}" \
   --unattended --replace
+
+unset APP_KEY JWT INSTALL_TOKEN REG_TOKEN SIGNATURE
+# ──────────────────────────────────────────────────────────────────────────────
+
 ./svc.sh install runner
 ./svc.sh start

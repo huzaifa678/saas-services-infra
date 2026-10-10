@@ -42,6 +42,13 @@ inputs = {
   ecr_repository_arn       = dependency.bootstrap.outputs.ecr_repository_arn
   toolchain_repository_url = dependency.bootstrap.outputs.toolchain_repository_url
 
+  # SAAS-infra-bot GitHub App, used to mint runner registration tokens. Not secret
+  # (the private key is seeded into Secrets Manager out-of-band), so they're supplied
+  # at apply time via env rather than committed: export GHA_RUNNER_APP_ID and
+  # GHA_RUNNER_APP_INSTALLATION_ID before `make apply LAYER=runner`.
+  github_app_id              = get_env("GHA_RUNNER_APP_ID", "")
+  github_app_installation_id = get_env("GHA_RUNNER_APP_INSTALLATION_ID", "")
+
   app_vpc_id          = dependency.network.outputs.vpc_id
   app_vpc_cidr        = dependency.network.outputs.vpc_cidr
   app_route_table_ids = dependency.network.outputs.private_route_table_ids

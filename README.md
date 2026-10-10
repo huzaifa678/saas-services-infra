@@ -136,11 +136,10 @@ make svc-render
 CI never applies from a laptop for shared envs — see the workflows below. Secrets are
 **not** passed on the command line; see [Secrets](#secrets--no-secret-is-passed-from-cigithub).
 
-> **Standing up a new environment?** The CI substrate is three one-time layers:
-> `bootstrap` (ECR + OIDC roles — no deps, applied first), `runner` (isolated runner
-> VPC + self-hosted runner, peered to the app VPC) and `45-rbac` (EKS access entries +
-> ci-deployer RBAC — after `10-platform` + `bootstrap`). See the
-> [bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md).
+> **Standing up a new environment?** See [Provisioning a new environment
+> (end-to-end)](#provisioning-a-new-environment-end-to-end) below for the full ordered
+> flow, and the [bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md) for
+> commands and detail.
 
 > **Tearing down an environment?** Run `scripts/teardown.sh <env>` **before** destroying.
 > It deletes the cluster-created AWS resources Terraform doesn't manage — NLBs from
@@ -148,6 +147,75 @@ CI never applies from a laptop for shared envs — see the workflows below. Secr
 > ECR repos and clears RDS deletion protection, so `make destroy-all ENV=<env>` (or
 > `RUN_DESTROY=1 scripts/teardown.sh <env>`) completes without `DependencyViolation`. See
 > [scripts/SCRIPT.md](scripts/SCRIPT.md#teardownsh--pre-destroy-cleanup).
+
+---
+
+## Provisioning a new environment (end-to-end)
+
+Layers fall into two groups: the **CI substrate** (`bootstrap`, `runner`, `45-rbac`) is
+applied out-of-band and is *not* in `infra.yml`; the **steady-state stack**
+(`00-network … 50-addons-helm`) is driven by `infra.yml`. It all starts with a one-time
+GitHub App; the order below weaves the layers together. Detail and commands:
+[bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md).
+
+```
+[GitHub App: SAAS-infra-bot]   (one-time, in GitHub)
+        │ id + installation id ─► runner apply;  private key ─► Secrets Manager
+        ▼
+bootstrap ─┬─► 00-network ─► 10-platform ─┬─► 20-data ─► 30-edge ─► 40-observability ─► 50-addons-helm
+           │                              │                                              (self-hosted + toolchain)
+           └──────── runner ─────────────┘
+                                          └─► 45-rbac  (cluster-bootstrap.yml, scope: full-layer)
+```
+
+| # | Step | Applied by | Why / gate |
+|---|------|-----------|------------|
+| 0 | **Create the `SAAS-infra-bot` GitHub App** | Org owner, GitHub UI | One-time. Repo permission *Administration: read/write*. Note the **App ID** (its *About* page) and **Installation ID** (install it on the repo → `…/settings/installations/<id>`), and download the **private key** (PEM). These feed step 3. See [the App inputs table](#the-runners-github-app-step-3-inputs). |
+| 1 | **`bootstrap`** | Admin, laptop (`make apply`) | No deps. Creates ECR toolchain repo + OIDC `tf-plan`/`tf-apply`/`cluster-bootstrap` roles + CMK. Then run the **`bootstrap-image`** workflow and wire `AWS_DEPLOY_ROLE_ARN` / `AWS_ROLE_CLUSTER_BOOTSTRAP` / `BOOTSTRAP_IMAGE`. |
+| 2 | **`00-network`**, **`10-platform`** | `infra.yml` → `tf-apply` (OIDC, `ubuntu-latest`) | Standard stack. `10-platform` grants the **gated `cluster-bootstrap` role** a cluster-admin access entry (`cluster_admin_principal_arns`, from `bootstrap`); the `tf-apply` caller is **not** admin (`include_caller_as_cluster_admin = false`). |
+| 3 | **`runner`** | Admin, laptop (`make apply` + `make register-runner`) | Needs `bootstrap` + `00-network` + `10-platform`. Stands up the isolated runner VPC + self-hosted runner, peered to the app VPC so it reaches the **private** EKS API. Registration auth is the **`SAAS-infra-bot` GitHub App** (repo-scoped, no user PAT): pass its id/installation id via env, apply, then `make register-runner` to seed the App private key + cycle the ASG so the host registers as `[self-hosted, vpc]`. |
+| 4 | **`45-rbac`** | **`cluster-bootstrap.yml`**, `scope: full-layer` → gated role, on the in-VPC runner | Needs `10-platform` + `bootstrap`. The ci-deployer RBAC holds `bind`/`escalate`, so first creation needs cluster-admin — the gated role already has it (step 2), so the only human action is approving the protected-Environment deployment. This maps `tf-apply` → `ci-deployers`. Recovery later: same workflow, `scope: rbac-only`. |
+| 5 | **`20-data … 50-addons-helm`** | `infra.yml` → `tf-apply` | `tf-apply` now acts cluster-side as `ci-deployers` (never admin). `20-data` also publishes the GitOps contract. |
+
+Key points:
+
+- **`45-rbac` must precede `50-addons-helm`** — it's the hinge. Before it runs, `tf-apply`
+  has no cluster permissions; after it, `tf-apply` reconciles as `ci-deployers`. Among the
+  `infra.yml` layers, `50-addons-helm` is the only one that talks to the cluster.
+- **No human is ever cluster-admin on the box.** The sole cluster-admin principal is the
+  gated `cluster-bootstrap` role, assumable only through an approved deployment to the
+  protected GitHub Environment. `make apply LAYER=45-rbac` remains a break-glass path.
+- **Cluster reachability:** `50-addons-helm` is the only `infra.yml` layer with helm/kubectl
+  providers, so it runs on the in-VPC `[self-hosted, vpc]` runner inside the toolchain image
+  (`run_in_toolchain`), the only path to a **private** EKS endpoint. Every other layer stays
+  on GitHub-hosted runners. This is why `45-rbac` (step 4) must land first — it maps `tf-apply`
+  to `ci-deployers`, the identity that layer then runs as.
+
+`make apply-all ENV=<env>` resolves the steady-state DAG via `terragrunt run-all`; the
+CI-substrate layers are applied by the steps above, not by `apply-all`.
+
+### The runner's GitHub App (step 3 inputs)
+
+The runner registers via the **`SAAS-infra-bot`** GitHub App (repo permission
+*Administration: read/write*), not a user PAT — at boot it mints a short-lived
+registration token, so no long-lived runner credential is stored. You supply three things:
+
+| Value | Secret? | How it's passed |
+|---|---|---|
+| App ID | no | `export GHA_RUNNER_APP_ID=<id>` (read from the App's *About* page) → `runner.hcl` `get_env` → layer input |
+| Installation ID | no | `export GHA_RUNNER_APP_INSTALLATION_ID=<id>` (from the `…/settings/installations/<id>` URL) → same path |
+| Private key (PEM) | **yes** | seeded once into Secrets Manager by `make register-runner` — never passed through Terraform/state |
+
+So id + installation id are **Terragrunt inputs via env**; the user-data template receives
+them through `templatefile()` and only the private key is a secret. Full lifecycle
+(boot-time token exchange, ASG self-healing, rotation, troubleshooting):
+[docs/runner-registration.md](docs/runner-registration.md).
+
+### Docs for this flow
+
+- [docs/bootstrap.md](docs/bootstrap.md) — bootstrap / runner / 45-rbac operational guide.
+- [docs/runner-registration.md](docs/runner-registration.md) — runner GitHub App auth, ASG, key rotation.
+- [docs/apply-layer-workflow.md](docs/apply-layer-workflow.md) — how `_apply-layer.yml` applies each layer (incl. the self-hosted `50-addons-helm`).
 
 ---
 
@@ -177,6 +245,15 @@ repo — `saas-<env>-bootstrap-runner` (the `bootstrap` layer).
 - VPC Flow Logs → CloudWatch
 - EKS control plane logs: `api`, `audit`, `authenticator`, `controllerManager`, `scheduler`
 - Prod: private EKS API endpoint + AWS Verified Access (Zero Trust)
+- Least-privilege cluster access: the sole cluster-admin is the **gated `cluster-bootstrap`
+  role** (assumable only via an approved protected-Environment deployment); `10-platform`
+  sets `include_caller_as_cluster_admin = false` so the steady-state `tf-apply` role is
+  never admin — it acts cluster-side only as the scoped `ci-deployers` group, whose RBAC is
+  broadened to exactly the platform install-target namespaces (`argocd`, `nginx-gateway`,
+  `monitoring`, `kube-system`) plus the needed cluster objects — not cluster-admin
+- Self-hosted runner auth via the `SAAS-infra-bot` **GitHub App** (short-lived registration
+  tokens, no long-lived PAT); the runner host holds no deploy/cluster rights — jobs federate
+  GitHub OIDC into scoped roles
 
 ### Secrets — no secret is passed from CI/GitHub
 

@@ -89,7 +89,13 @@ variable "kms_key_arn" {
 }
 
 variable "cluster_admin_principal_arns" {
-  description = "IAM principal ARNs granted EKS cluster admin via access entries (in addition to the Terraform caller role)."
+  description = "IAM principal ARNs granted EKS cluster admin via access entries. Normally the gated cluster-bootstrap role (from the bootstrap layer) is wired here, making it the explicit root-of-trust admin that first-applies 45-rbac."
   type        = list(string)
   default     = []
+}
+
+variable "include_caller_as_cluster_admin" {
+  description = "Also grant cluster admin to the IAM role that applies this layer. Default false so the steady-state tf-apply role is never implicitly admin; set true only for a convenience/break-glass env. When false, cluster_admin_principal_arns must contain a reachable admin."
+  type        = bool
+  default     = false
 }

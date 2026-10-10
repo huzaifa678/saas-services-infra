@@ -26,6 +26,12 @@ on:
         default: "prod"
         type: choice
         options: [dev, test, prod]
+      scope:
+        description: "rbac-only: idempotent re-apply of just the ci-deployer RBAC (recovery). full-layer: first-apply the entire 45-rbac layer (access entries + RBAC) as the gated role."
+        required: true
+        default: "rbac-only"
+        type: choice
+        options: [rbac-only, full-layer]
 
 permissions:
   id-token: write # OIDC
@@ -60,5 +66,16 @@ jobs:
       - name: Init
         run: terragrunt init -input=false
 
-      - name: Apply ci-deployer RBAC (idempotent)
-        run: terragrunt apply -input=false -lock-timeout=120s -auto-approve -target=module.ci_deployer_rbac
+
+      # rbac-only (default): recovery re-apply of just the escalation-capable
+      # ClusterRole. full-layer: first-apply the whole 45-rbac layer (EKS access
+      # entries + RBAC) as the gated role, so the initial bootstrap needs no human
+      # cluster-admin on the box — only the protected-Environment approval above.
+      - name: Apply 45-rbac (${{ inputs.scope }})
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.scope }}" = "full-layer" ]; then
+            terragrunt apply -input=false -lock-timeout=120s -auto-approve
+          else
+            terragrunt apply -input=false -lock-timeout=120s -auto-approve -target=module.ci_deployer_rbac
+          fi

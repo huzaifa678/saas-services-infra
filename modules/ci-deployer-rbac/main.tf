@@ -10,10 +10,13 @@ terraform {
 }
 
 # ci-deployer RBAC — the least-privilege identity the steady-state deployer runs
-# as inside the cluster. It grants exactly what GitOps bootstrap needs: manage
-# namespaces + CRDs, and manage ClusterRoles/Bindings *including* bind+escalate
-# (so it can install ArgoCD's own roles), plus full control of the argocd
-# namespace. It is NOT cluster-admin.
+# as inside the cluster. It grants exactly what the GitOps/addons bootstrap needs:
+# cluster-scoped — manage namespaces, CRDs, ClusterRoles/Bindings *including*
+# bind+escalate (to install the controllers' own roles), admission webhooks and
+# IngressClasses (the AWS LB Controller registers these); namespaced — full control
+# only inside the enumerated platform install-target namespaces (argocd,
+# nginx-gateway, monitoring, kube-system). It is NOT cluster-admin: it cannot touch
+# workloads or secrets in any other namespace.
 #
 # Kubernetes escalation-prevention: creating a ClusterRole that itself holds
 # bind/escalate requires a caller who already has those verbs — i.e. a
@@ -23,7 +26,9 @@ terraform {
 # cluster forever without ever being cluster-admin.
 data "kubectl_file_documents" "ci_deployer" {
   content = templatefile("${var.manifest_path}", {
-    deployer_group = var.deployer_group
+    deployer_group         = var.deployer_group
+    provisioned_namespaces = var.provisioned_namespaces
+    admin_namespaces       = distinct(concat(var.provisioned_namespaces, var.existing_admin_namespaces))
   })
 }
 

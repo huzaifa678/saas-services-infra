@@ -18,22 +18,31 @@ Split out from `bootstrap` because these resources need the live EKS cluster
   provider and the access entries).
 - **`bootstrap`** → `gha_cluster_bootstrap_role_arn`, `gha_tf_apply_role_arn`.
 
-## First apply needs cluster-admin
+## First apply needs cluster-admin — supplied by the gated role, not a human
 
 Kubernetes escalation-prevention: creating a ClusterRole that itself holds
 `bind`/`escalate` requires a caller who already has those verbs. So the **first** apply
-must run as a cluster-admin — the human bootstrapper (`include_caller_as_cluster_admin
-= true` on the platform EKS module) or the gated `cluster-bootstrap` role. After it
-exists, the `tf-apply` role reconciles forever as the `ci-deployers` group, never admin.
+must run as a cluster-admin. The root-of-trust admin is the gated `cluster-bootstrap`
+role, which `10-platform` grants a cluster-admin access entry at platform time (via
+`cluster_admin_principal_arns`, wired from the bootstrap layer). The platform applier is
+**not** admin (`include_caller_as_cluster_admin = false`), so the steady-state `tf-apply`
+role is never implicitly admin — after this layer exists it reconciles forever as the
+`ci-deployers` group only.
 
-```bash
-# After 10-platform and bootstrap are applied:
-make apply ENV=<env> LAYER=45-rbac
+Because the gated role is already admin before this layer runs, the **preferred** first
+apply is the gated workflow with an approved deployment — no human on the cluster:
+
+```
+Actions ▸ cluster-bootstrap ▸ Run  (environment: <env>, scope: full-layer)
 ```
 
-The [`cluster-bootstrap.yml`](../../.github/workflows/cluster-bootstrap.yml) workflow
-re-applies just the RBAC (`-target=module.ci_deployer_rbac`) as the gated role, for
-idempotent recovery without a human on Verified Access.
+That applies the entire layer (access entries + RBAC) as the gated role. The default
+`scope: rbac-only` re-applies just `-target=module.ci_deployer_rbac` for idempotent
+recovery. A manual `make apply ENV=<env> LAYER=45-rbac` still works as a break-glass
+path for an operator who already holds cluster-admin, but is no longer the normal route.
+
+> Note: with the gated role wired at platform time, `create_gated_admin_access_entry`
+> defaults to **false** here so this layer does not create a duplicate access entry.
 
 ## Staging toggles (all default `true`)
 

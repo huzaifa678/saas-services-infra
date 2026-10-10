@@ -39,6 +39,16 @@ variable "github_repo" {
   default     = "saas-services-infra"
 }
 
+variable "github_app_id" {
+  description = "ID of the SAAS-infra-bot GitHub App used for runner registration (not secret)."
+  type        = string
+}
+
+variable "github_app_installation_id" {
+  description = "Installation ID of the SAAS-infra-bot GitHub App on the infra repo (not secret)."
+  type        = string
+}
+
 # ── From bootstrap ───────────────────────────────────────────────────────────
 variable "ecr_repository_arn" {
   description = "Toolchain ECR repo ARN (bootstrap layer) the runner may pull."

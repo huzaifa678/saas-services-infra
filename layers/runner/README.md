@@ -10,9 +10,9 @@ lifecycle is independent of `00-network`.
 | Component | Module | Purpose |
 |---|---|---|
 | Isolated runner VPC | `modules/runner-vpc` | Minimal VPC: 1 public + 1 private subnet, IGW, single NAT. CIDR `10.100.0.0/16` (must not overlap the app VPC's `10.0.0.0/16`). |
-| Self-hosted runner | `modules/gha-runner` | AL2023 EC2 (ASG of 1, self-healing) in the private subnet. Thin instance profile: SSM + read PAT + pull the toolchain image, **no deploy rights**. |
+| Self-hosted runner | `modules/gha-runner` | AL2023 EC2 (ASG of 1, self-healing) in the private subnet. Thin instance profile: SSM + read the GitHub App key + pull the toolchain image, **no deploy rights**. |
 | Peering to the app VPC | `modules/runner-peering` | VPC peering + routes both ways + a 443 ingress on the cluster SG + association of the EKS private hosted zone with the runner VPC (so the API FQDN resolves). |
-| Dedicated CMK | this layer | Encrypts the runner's PAT secret and root volume. |
+| Dedicated CMK | this layer | Encrypts the runner's GitHub App key secret and root volume. |
 
 ## Dependencies
 
@@ -29,14 +29,28 @@ bidirectional routes, and the EKS private-hosted-zone association — plus the c
 FQDN, set `eks_private_zone_name`; to manage that DNS out-of-band, set
 `associate_eks_private_zone = false`.
 
+## Registration auth: GitHub App (no user PAT)
+
+The runner authenticates as the **`SAAS-infra-bot` GitHub App** installation. At boot it
+signs a short-lived JWT with the App private key (read from Secrets Manager), exchanges it
+for an installation token, and mints a one-time runner registration token — so no
+long-lived runner credential ever lives on the host. The App needs repo
+`administration: write` (to create registration tokens). App id and installation id are
+**not secret** and are passed as vars; only the private key is a secret, seeded once.
+
 ```bash
+# App id / installation id are not secret — supply them via env for the apply:
+export GHA_RUNNER_APP_ID=<app-id>
+export GHA_RUNNER_APP_INSTALLATION_ID=<installation-id>
 make apply ENV=<env> LAYER=runner
 
-# then seed the PAT and cycle the ASG so the instance registers:
-cd live/<env>/runner
-aws secretsmanager put-secret-value \
-  --secret-id "$(terragrunt output -raw runner_pat_secret_arn)" \
-  --secret-string "<github-pat>"
-aws autoscaling start-instance-refresh \
-  --auto-scaling-group-name "$(terragrunt output -raw runner_asg_name)"
+# then seed the App private key (PEM) ONCE and cycle the ASG so the host registers:
+make register-runner ENV=<env> KEY=app-private-key.pem
 ```
+
+`register-runner` reads the key straight into Secrets Manager (never into Terraform
+state) and triggers an ASG instance refresh; the host re-registers with a fresh
+registration token on next boot.
+
+For the full registration/ASG/App-key lifecycle (boot-time token exchange, self-healing,
+rotation, troubleshooting) see [docs/runner-registration.md](../../docs/runner-registration.md).

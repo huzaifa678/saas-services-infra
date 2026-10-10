@@ -9,12 +9,13 @@ include "envcommon" {
 }
 
 locals {
-  env = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
+  env             = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
+  ava_oidc_issuer = startswith(local.env.ava.oidc_issuer, "https://") ? local.env.ava.oidc_issuer : "https://${local.env.ava.oidc_issuer}"
 }
 
 inputs = {
   ava_custom_subdomain = local.env.ava.custom_subdomain
-  ava_oidc_issuer      = local.env.ava.oidc_issuer
+  ava_oidc_issuer      = local.ava_oidc_issuer
 
   # Authenticating a user and then permitting everyone is not zero trust. The
   # module rejects an unconditional `when { true }` permit.

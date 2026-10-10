@@ -56,9 +56,9 @@ variable "manage_ci_deployer_rbac" {
 }
 
 variable "create_gated_admin_access_entry" {
-  description = "Grant the gated cluster-bootstrap role a cluster-admin EKS access entry."
+  description = "Grant the gated cluster-bootstrap role a cluster-admin EKS access entry here. Default false: the entry is now created at platform time via 10-platform's cluster_admin_principal_arns, so the gated role is already admin before this layer runs (avoids a duplicate access-entry conflict). Set true only if platform does not wire the gated role."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "map_deployer_access_entry" {

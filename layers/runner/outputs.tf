@@ -1,10 +1,10 @@
-output "runner_pat_secret_arn" {
-  description = "Seed the GitHub registration PAT here (out-of-band), then cycle the ASG."
-  value       = module.runner.pat_secret_arn
+output "runner_app_key_secret_arn" {
+  description = "Seed the GitHub App private key (PEM) here (out-of-band, once), then cycle the ASG."
+  value       = module.runner.app_key_secret_arn
 }
 
 output "runner_asg_name" {
-  description = "Runner ASG name, for cycling the instance after seeding the PAT."
+  description = "Runner ASG name, for cycling the instance after seeding the App key."
   value       = module.runner.asg_name
 }
 
