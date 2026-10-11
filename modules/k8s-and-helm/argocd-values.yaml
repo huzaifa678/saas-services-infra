@@ -39,9 +39,16 @@ configs:
 
   cm:
     application.instanceLabelKey: argocd.argoproj.io/instance
+    # Local account the Backstage portal authenticates as. apiKey lets the
+    # backstage-argocd-token PreSync Job (CD repo) mint an API token for it; the
+    # token is the ARGOCD_AUTH_TOKEN the portal uses. No login capability.
+    accounts.backstage: apiKey
 
   rbac:
     policy.default: role:readonly
     policy.csv: |
       p, role:admin, applications, *, */*, allow
       g, admin, role:admin
+      # Backstage portal: read-only visibility into apps/projects for its Argo CD plugin.
+      p, backstage, applications, get, */*, allow
+      p, backstage, projects, get, *, allow
