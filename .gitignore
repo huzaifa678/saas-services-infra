@@ -5,8 +5,11 @@ tfplan
 *.tfstate
 *.tfstate.backup
 
-# Local secret files
+# Local secret files (plaintext). The SOPS-encrypted secrets.<env>.enc.env are
+# safe to commit, so un-ignore them.
 secrets.*.env
+secrets.prod.enc.env
+!secrets.*.enc.env
 
 # OS
 .DS_Store
