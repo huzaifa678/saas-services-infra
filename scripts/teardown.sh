@@ -20,6 +20,14 @@
 #     * ECR repositories that still hold images (the repos are created with
 #       force_delete=false, so a non-empty repo refuses to delete).
 #     * RDS instances with deletion_protection=true (on in test/prod per guardrails).
+#     * Stale ENIs in the isolated RUNNER VPC (10.100.0.0/16), same blocker class.
+#
+#   Not a destroy *blocker*, but cleaned up optionally (PURGE_SECRETS=1): the
+#   out-of-band Secrets Manager secrets that are NOT Terraform-managed — the
+#   SOPS-seeded saas/<env>/* and the runner's saas-<env>-gha-runner-app-key. They
+#   otherwise orphan after destroy, and the recovery window can collide with a soon
+#   re-provision ("secret scheduled for deletion"). Terraform-generated DB secrets
+#   and the account-global ones (backstage-input, api-gateway-input) are left alone.
 #
 #   ArgoCD (installed by 50-addons-helm) continuously reconciles the cluster, so it
 #   would recreate anything we delete. We stop its controllers first, but keep the
@@ -41,6 +49,7 @@
 #   RUN_DESTROY=1 scripts/teardown.sh <env>   # cleanup, then run terragrunt destroy
 #   AUTO_APPROVE=1 scripts/teardown.sh <env>  # skip the confirmation prompt
 #   SKIP_K8S=1 scripts/teardown.sh <env>      # cluster already gone: AWS sweep only
+#   PURGE_SECRETS=1 scripts/teardown.sh <env> # also force-delete the env's out-of-band secrets
 #   REGION=us-west-2 scripts/teardown.sh <env>
 #
 #   <env> is one of dev | test | prod and is REQUIRED (no default — this is destructive).
@@ -66,6 +75,7 @@ esac
 AUTO_APPROVE="${AUTO_APPROVE:-0}"
 RUN_DESTROY="${RUN_DESTROY:-0}"
 SKIP_K8S="${SKIP_K8S:-0}"
+PURGE_SECRETS="${PURGE_SECRETS:-0}"   # force-delete the env's out-of-band secrets
 WAIT_SECS="${WAIT_SECS:-300}"   # per-wait timeout for LBs/nodes to drain
 
 for bin in terragrunt aws kubectl jq; do
@@ -87,9 +97,10 @@ tg_out() { # tg_out <layer> <output-name>  -> raw value or empty
 step "0. resolve cluster / vpc / account"
 CLUSTER="$(tg_out 10-platform cluster_name)"
 VPC_ID="$(tg_out 00-network vpc_id)"
+RUNNER_VPC_ID="$(tg_out runner runner_vpc_id)"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || true)"
 echo "  env=$ENV region=$REGION account=${ACCOUNT:-?}"
-echo "  cluster=${CLUSTER:-<unknown>} vpc=${VPC_ID:-<unknown>}"
+echo "  cluster=${CLUSTER:-<unknown>} vpc=${VPC_ID:-<unknown>} runner_vpc=${RUNNER_VPC_ID:-<none>}"
 [[ -z "$CLUSTER" ]] && yellow "  cluster_name not in state (already destroyed?) — k8s steps will be skipped"
 [[ -z "$VPC_ID"  ]] && yellow "  vpc_id not in state — the ENI/SG sweep will be skipped"
 
@@ -206,6 +217,19 @@ else
   yellow "no VPC id — skipping ELB/SG/ENI sweep"
 fi
 
+# Isolated runner VPC (10.100.0.0/16) — same 'available' ENI blocker class. The
+# runner itself is TF-managed, but sweep defensively so its VPC destroy won't hang.
+if [[ -n "$RUNNER_VPC_ID" ]]; then
+  step "5d. delete stale 'available' ENIs in the runner VPC $RUNNER_VPC_ID"
+  for eni in $(aws ec2 describe-network-interfaces \
+        --filters "Name=vpc-id,Values=$RUNNER_VPC_ID" "Name=status,Values=available" \
+        --query 'NetworkInterfaces[].NetworkInterfaceId' --output text 2>/dev/null); do
+    [[ "$eni" == "None" ]] && continue
+    echo "  deleting eni $eni"
+    aws ec2 delete-network-interface --network-interface-id "$eni" 2>/dev/null || true
+  done
+fi
+
 # ── ECR: empty the repositories so they can be destroyed ─────────────────────
 step "6. empty ECR repositories (force_delete=false means non-empty repos won't delete)"
 repos="$(terragrunt output -json ecr_repository_urls --working-dir "$live/05-ecr" 2>/dev/null | jq -r 'keys[]?' 2>/dev/null)"
@@ -232,6 +256,27 @@ for arn in $dbs; do
   aws rds modify-db-instance --db-instance-identifier "$id" --no-deletion-protection --apply-immediately >/dev/null 2>&1 || true
 done
 
+# ── Secrets: optional purge of the env's out-of-band secrets ─────────────────
+# Opt-in (PURGE_SECRETS=1): these are NOT Terraform-managed, so destroy leaves
+# them behind. Scoped to unambiguously env-specific names only — the SOPS-seeded
+# saas/<env>/* and the runner's app-key. The account-global secrets
+# (saas/backstage-input, saas/api-gateway-input) and the Terraform-generated DB
+# secrets are intentionally left alone.
+if [[ "$PURGE_SECRETS" == "1" ]]; then
+  step "7b. force-delete env-scoped out-of-band secrets (PURGE_SECRETS=1)"
+  arns="$(aws secretsmanager list-secrets \
+            --filters Key=name,Values="saas/${ENV}/" \
+            --query 'SecretList[].ARN' --output text 2>/dev/null)"
+  runner_key="$(tg_out runner runner_app_key_secret_arn)"
+  for arn in $arns $runner_key; do
+    [[ -z "$arn" || "$arn" == "None" ]] && continue
+    echo "  deleting secret $arn"
+    aws secretsmanager delete-secret --secret-id "$arn" --force-delete-without-recovery >/dev/null 2>&1 || true
+  done
+else
+  yellow "skipping out-of-band secret purge (set PURGE_SECRETS=1 to force-delete saas/${ENV}/* + the runner app key)"
+fi
+
 # ── Hand off to terragrunt destroy ───────────────────────────────────────────
 echo
 green "================================================================"
@@ -248,4 +293,7 @@ else
   echo
   echo "If a subnet/SG/VPC delete still fails with DependencyViolation, re-run this"
   echo "script (the ENI/LB sweep is idempotent) then retry the destroy."
+  echo
+  yellow "note: destroying the runner layer terminates the self-hosted runner but leaves"
+  yellow "an offline entry in GitHub (repo ▸ Settings ▸ Actions ▸ Runners) — remove it there."
 fi

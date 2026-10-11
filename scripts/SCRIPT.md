@@ -145,9 +145,16 @@ groups in use:
   `nginx-gateway-lb` Services + anything the apps expose) — each holds ENIs.
 - **EC2 nodes Karpenter provisions** out-of-band (not a TF node group) — primary +
   VPC-CNI secondary ENIs, and they keep the cluster/node SGs in use.
-- **Leftover "available" ENIs** and LB-created security groups after the above.
+- **Leftover "available" ENIs** and LB-created security groups after the above, in
+  both the app VPC and the isolated **runner VPC** (`10.100.0.0/16`).
 - **ECR repositories that still hold images** (repos are `force_delete = false`).
 - **RDS instances with `deletion_protection = true`** (on in test/prod per guardrails).
+
+Not destroy *blockers*, but cleaned up optionally with `PURGE_SECRETS=1`: the
+out-of-band Secrets Manager secrets that aren't Terraform-managed — the SOPS-seeded
+`saas/<env>/*` and the runner's `saas-<env>-gha-runner-app-key`. The account-global
+ones (`saas/backstage-input`, `saas/api-gateway-input`) and the Terraform-generated
+DB secrets are left alone.
 
 ArgoCD would recreate anything we delete, so the script stops its controllers first
 but leaves the AWS Load Balancer Controller + Karpenter running to deprovision
@@ -164,9 +171,10 @@ gracefully.
 | 2 | Delete all `type: LoadBalancer` Services, wait for the ELBv2 objects to clear | Remove NLBs + their ENIs via the LB controller |
 | 3 | Delete Karpenter `NodePools` / `NodeClaims`, scale Karpenter to 0, wait for instances to terminate | Free node ENIs; stop re-provisioning |
 | 4 | Delete Crossplane `AppDatabase` / `AppCache` claims | Let Crossplane deprovision out-of-band AWS resources |
-| 5 | AWS sweep: leftover ELBv2 LBs/target groups, LB-controller SGs, **stale available ENIs** | The classic VPC/subnet/SG destroy blockers |
+| 5 | AWS sweep: leftover ELBv2 LBs/target groups, LB-controller SGs, **stale available ENIs** in the app VPC (5a–5c) and the **runner VPC** (5d) | The classic VPC/subnet/SG destroy blockers |
 | 6 | Empty the ECR repositories (`05-ecr` repos + `saas-<env>-bootstrap-runner`) | Non-empty repos refuse to delete |
 | 7 | Disable RDS `deletion_protection` for the env | Lets the DB instances be destroyed |
+| 7b | *(opt-in `PURGE_SECRETS=1`)* force-delete `saas/<env>/*` + the runner app-key secret | Remove non-TF secrets; avoid "scheduled for deletion" collisions on re-provision |
 | 8 | Print (or run) the destroy | Hand off to `terragrunt run-all destroy` |
 
 Only after this does the layer destroy run — reverse dependency order is handled by
@@ -188,6 +196,9 @@ AUTO_APPROVE=1 scripts/teardown.sh test
 
 # cluster already gone: run the AWS sweep (ELB/SG/ENI) only
 SKIP_K8S=1 scripts/teardown.sh test
+
+# also force-delete the env's out-of-band secrets (saas/<env>/* + runner app key)
+PURGE_SECRETS=1 scripts/teardown.sh test
 
 # override region / per-wait timeout
 REGION=us-west-2 WAIT_SECS=600 scripts/teardown.sh prod
