@@ -154,31 +154,38 @@ CI never applies from a laptop for shared envs — see the workflows below. Secr
 
 Layers fall into two groups: the **CI substrate** (`bootstrap`, `runner`, `45-rbac`) is
 applied out-of-band and is *not* in `infra.yml`; the **steady-state stack**
-(`00-network … 50-addons-helm`) is driven by `infra.yml`. It all starts with a one-time
-GitHub App; the order below weaves the layers together. Detail and commands:
-[bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md).
+(`00-network … 50-addons-helm`) is driven by `infra.yml`. Weaving through both is secret
+handling, which comes in **three kinds** (see [Secrets](#secrets--no-secret-is-passed-from-cigithub)):
+*Terraform-generated* (DB passwords, in `20-data`), *out-of-band seeded* (step 2 below,
+via SOPS + `seed-secrets.sh`), and *in-cluster generated* (the runner's token; optionally
+Backstage's). Detail and commands: [bootstrap, runner & cluster-RBAC setup guide](docs/bootstrap.md).
 
 ```
-[GitHub App: SAAS-infra-bot]   (one-time, in GitHub)
-        │ id + installation id ─► runner apply;  private key ─► Secrets Manager
+[GitHub App: SAAS-infra-bot]            [age key → secrets.<env>.enc.env]     (one-time)
+        │ id/inst ─► runner                     │ seed-secrets.sh ─► Secrets Manager
+        │ key ─► Secrets Manager                ▼ (must land before 30-edge / 40-obs / services)
         ▼
-bootstrap ─┬─► 00-network ─► 10-platform ─┬─► 20-data ─► 30-edge ─► 40-observability ─► 50-addons-helm
-           │                              │                                              (self-hosted + toolchain)
-           └──────── runner ─────────────┘
-                                          └─► 45-rbac  (cluster-bootstrap.yml, scope: full-layer)
+bootstrap ─► seed-secrets ─┬─► 00-network ─► 10-platform ─┬─► 20-data ─► 30-edge ─► 40-observability ─► 50-addons-helm
+           │               │                 (gen DB pw)  │                                             (self-hosted + toolchain)
+           └───── runner ──┘                              └─► 45-rbac  (cluster-bootstrap.yml, scope: full-layer)
 ```
 
 | # | Step | Applied by | Why / gate |
 |---|------|-----------|------------|
-| 0 | **Create the `SAAS-infra-bot` GitHub App** | Org owner, GitHub UI | One-time. Repo permission *Administration: read/write*. Note the **App ID** (its *About* page) and **Installation ID** (install it on the repo → `…/settings/installations/<id>`), and download the **private key** (PEM). These feed step 3. See [the App inputs table](#the-runners-github-app-step-3-inputs). |
+| 0 | **One-time prerequisites** | Org owner / laptop | Create the **`SAAS-infra-bot` GitHub App** (repo *Administration: read/write*); note **App ID** + **Installation ID** and download the **private key** (PEM) — these feed step 4 ([inputs](#the-runners-github-app-step-4-inputs)). Generate an **age key** for SOPS and author `secrets.<env>.enc.env` ([Secrets](#secrets--no-secret-is-passed-from-cigithub)) — feeds step 2. |
 | 1 | **`bootstrap`** | Admin, laptop (`make apply`) | No deps. Creates ECR toolchain repo + OIDC `tf-plan`/`tf-apply`/`cluster-bootstrap` roles + CMK. Then run the **`bootstrap-image`** workflow and wire `AWS_DEPLOY_ROLE_ARN` / `AWS_ROLE_CLUSTER_BOOTSTRAP` / `BOOTSTRAP_IMAGE`. |
-| 2 | **`00-network`**, **`10-platform`** | `infra.yml` → `tf-apply` (OIDC, `ubuntu-latest`) | Standard stack. `10-platform` grants the **gated `cluster-bootstrap` role** a cluster-admin access entry (`cluster_admin_principal_arns`, from `bootstrap`); the `tf-apply` caller is **not** admin (`include_caller_as_cluster_admin = false`). |
-| 3 | **`runner`** | Admin, laptop (`make apply` + `make register-runner`) | Needs `bootstrap` + `00-network` + `10-platform`. Stands up the isolated runner VPC + self-hosted runner, peered to the app VPC so it reaches the **private** EKS API. Registration auth is the **`SAAS-infra-bot` GitHub App** (repo-scoped, no user PAT): pass its id/installation id via env, apply, then `make register-runner` to seed the App private key + cycle the ASG so the host registers as `[self-hosted, vpc]`. |
-| 4 | **`45-rbac`** | **`cluster-bootstrap.yml`**, `scope: full-layer` → gated role, on the in-VPC runner | Needs `10-platform` + `bootstrap`. The ci-deployer RBAC holds `bind`/`escalate`, so first creation needs cluster-admin — the gated role already has it (step 2), so the only human action is approving the protected-Environment deployment. This maps `tf-apply` → `ci-deployers`. Recovery later: same workflow, `scope: rbac-only`. |
-| 5 | **`20-data … 50-addons-helm`** | `infra.yml` → `tf-apply` | `tf-apply` now acts cluster-side as `ci-deployers` (never admin). `20-data` also publishes the GitOps contract. |
+| 2 | **Seed out-of-band secrets** (`./scripts/seed-secrets.sh <env>`) | Admin, laptop (SOPS/age decrypt) | Only needs step 1 (AWS creds + Secrets Manager). Writes `stripe-api-key`, `auth-jwt`, `opensearch-master`, `auth0`, `llm-api-keys`, `backstage-input` to Secrets Manager. **Must run before step 6** — `30-edge` reads `auth0`, `40-observability` reads `opensearch-master`, and the services read the rest. |
+| 3 | **`00-network`**, **`10-platform`** | `infra.yml` → `tf-apply` (OIDC, `ubuntu-latest`) | Standard stack. `10-platform` grants the **gated `cluster-bootstrap` role** a cluster-admin access entry (`cluster_admin_principal_arns`, from `bootstrap`); the `tf-apply` caller is **not** admin (`include_caller_as_cluster_admin = false`). |
+| 4 | **`runner`** | Admin, laptop (`make apply` + `make register-runner`) | Needs `bootstrap` + `00-network` + `10-platform`. Stands up the isolated runner VPC + self-hosted runner, peered to the app VPC so it reaches the **private** EKS API. Registration auth is the **`SAAS-infra-bot` GitHub App** (repo-scoped, no user PAT): pass its id/installation id via env, apply, then `make register-runner` to seed the App private key + cycle the ASG so the host registers as `[self-hosted, vpc]`. |
+| 5 | **`45-rbac`** | **`cluster-bootstrap.yml`**, `scope: full-layer` → gated role, on the in-VPC runner | Needs `10-platform` + `bootstrap`. The ci-deployer RBAC holds `bind`/`escalate`, so first creation needs cluster-admin — the gated role already has it (step 3), so the only human action is approving the protected-Environment deployment. This maps `tf-apply` → `ci-deployers`. Recovery later: same workflow, `scope: rbac-only`. |
+| 6 | **`20-data … 50-addons-helm`** | `infra.yml` → `tf-apply` | `tf-apply` now acts cluster-side as `ci-deployers` (never admin). `20-data` **generates** the DB passwords and publishes the GitOps contract; `30-edge`/`40-observability` **read** the step-2 secrets. |
+| 7 | **services + Backstage** | services tree / Argo CD | Services read their seeded secrets. Backstage's Keycloak client secret + Argo CD token are **generated in-cluster** when `secretGeneration.enabled` (then dropped from `backstage-input`). |
 
 Key points:
 
+- **Seed (step 2) before step 6.** `30-edge` (Auth0) and `40-observability` (OpenSearch),
+  and the services, fail if their Secrets Manager entries aren't present yet. Seeding only
+  depends on `bootstrap`, so do it as soon as that's applied.
 - **`45-rbac` must precede `50-addons-helm`** — it's the hinge. Before it runs, `tf-apply`
   has no cluster permissions; after it, `tf-apply` reconciles as `ci-deployers`. Among the
   `infra.yml` layers, `50-addons-helm` is the only one that talks to the cluster.
@@ -188,13 +195,13 @@ Key points:
 - **Cluster reachability:** `50-addons-helm` is the only `infra.yml` layer with helm/kubectl
   providers, so it runs on the in-VPC `[self-hosted, vpc]` runner inside the toolchain image
   (`run_in_toolchain`), the only path to a **private** EKS endpoint. Every other layer stays
-  on GitHub-hosted runners. This is why `45-rbac` (step 4) must land first — it maps `tf-apply`
+  on GitHub-hosted runners. This is why `45-rbac` (step 5) must land first — it maps `tf-apply`
   to `ci-deployers`, the identity that layer then runs as.
 
 `make apply-all ENV=<env>` resolves the steady-state DAG via `terragrunt run-all`; the
 CI-substrate layers are applied by the steps above, not by `apply-all`.
 
-### The runner's GitHub App (step 3 inputs)
+### The runner's GitHub App (step 4 inputs)
 
 The runner registers via the **`SAAS-infra-bot`** GitHub App (repo permission
 *Administration: read/write*), not a user PAT — at boot it mints a short-lived
@@ -284,11 +291,31 @@ repo's ExternalSecret reads (the Backstage DB half is a separate `modules/rds` s
 > [docs/verified-access-auth0.md](docs/verified-access-auth0.md) for the end-to-end
 > Verified Access ⟷ Auth0 OIDC setup runbook.
 
-Seed them once per environment from your local (gitignored) `secrets.<env>.env`:
+Seed them once per environment. The source of truth is a **SOPS/age-encrypted**
+`secrets.<env>.enc.env` committed to the repo (versioned + reviewable, no plaintext in
+git); `seed-secrets.sh` decrypts it in memory and writes the values to Secrets Manager:
 
 ```bash
-./scripts/seed-secrets.sh prod      # create-or-update; values never printed
+# one-time: generate an age key and put its PUBLIC line in .sops.yaml
+age-keygen -o ~/.config/sops/age/keys.txt
+
+# edit/create the encrypted env file (opens $EDITOR, re-encrypts on save)
+sops secrets.prod.enc.env          # lines: TF_VAR_stripe_api_key=sk_live_…
+
+# seed (decrypts with your age key; create-or-update; values never printed)
+./scripts/seed-secrets.sh prod
 ```
+
+age — not KMS — is used so the committed file carries only a public recipient, never an
+AWS account id (matching this repo's no-committed-account-id convention). The script
+falls back to a local, gitignored plaintext `secrets.<env>.env` if no encrypted file is
+present, so nothing breaks mid-migration.
+
+`saas/backstage-input` is **account-global** (no `<env>` in the id) — seed it only from the
+env file that carries the backstage values; the script guards it so a run for another env
+won't clobber it with empty fields. The self-hosted runner's GitHub App key
+(`saas-<env>-gha-runner-app-key`) is **not** seeded here — it's handled by
+`make register-runner` (see [runner-registration.md](docs/runner-registration.md)).
 
 After seeding, **delete these repo/environment GitHub secrets** (now unused):
 `TF_VAR_KEYCLOAK_DB_PASSWORD`, `TF_VAR_SUBSCRIPTION_DB_PASSWORD`, `TF_VAR_BILLING_DB_PASSWORD`,

@@ -89,6 +89,9 @@ If EKS named its private hosted zone differently from the endpoint FQDN, set
   infra repo. Its id + installation id (not secret) are passed to the `runner` apply via
   env; its private key (PEM) is seeded once into Secrets Manager after the apply. The
   runner mints short-lived registration tokens from the App — no user PAT.
+- For the **out-of-band app secrets** (step 2): a SOPS **age** key (public line in
+  `.sops.yaml`) and a `secrets.<env>.enc.env` holding the `TF_VAR_*` values. See the main
+  README [Secrets](../README.md#secrets--no-secret-is-passed-from-cigithub) section.
 
 ---
 
@@ -105,11 +108,17 @@ make apply ENV=test LAYER=bootstrap
 #      var    AWS_ROLE_CLUSTER_BOOTSTRAP = gha_cluster_bootstrap_role_arn
 #      var    BOOTSTRAP_IMAGE            = toolchain_repository_url
 
-# 2. Core infra
+# 2. Seed the out-of-band app secrets (only needs step 1: AWS creds + Secrets
+#    Manager). Decrypts secrets.test.enc.env (SOPS/age) and writes stripe/auth-jwt/
+#    opensearch/auth0/llm/backstage-input. MUST run before 30-edge (auth0) and
+#    40-observability (opensearch) in step 4. See the main README "Secrets" section.
+./scripts/seed-secrets.sh test
+
+# 3. Core infra
 make apply ENV=test LAYER=00-network
 make apply ENV=test LAYER=10-platform
 
-# 3. The runner (own VPC, peered to the app VPC), then register it.
+# 4. The runner (own VPC, peered to the app VPC), then register it.
 #    GitHub App id/installation are not secret -> supplied via env for the apply.
 export GHA_RUNNER_APP_ID=<app-id>
 export GHA_RUNNER_APP_INSTALLATION_ID=<installation-id>
@@ -118,9 +127,9 @@ make apply ENV=test LAYER=runner
 # Manager, never Terraform state); the host mints registration tokens from it.
 make register-runner ENV=test KEY=app-private-key.pem
 
-# 4. Cluster wiring — first-applied by the gated role via the workflow:
+# 5. Cluster wiring — first-applied by the gated role via the workflow:
 #    GitHub ▸ Actions ▸ cluster-bootstrap ▸ Run (environment: test, scope: full-layer)
-#    (This runs on the in-VPC self-hosted runner from step 3, so it reaches the
+#    (This runs on the in-VPC self-hosted runner from step 4, so it reaches the
 #     private EKS API; the protected-Environment approval is the only human action.)
 ```
 
