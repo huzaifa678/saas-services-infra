@@ -29,6 +29,16 @@ variable "services" {
   ]
 }
 
+variable "bootstrap_images_environment" {
+  description = "Microservice image names — one ECR repository is created per entry."
+  type        = list(string)
+  default = [
+    "saas-dev-bootstrap-runner",
+    "saas-test-bootstrap-runner",
+    "saas-prod-bootstrap-runner"
+  ]
+}
+
 variable "functions" {
   description = <<-EOT
     Crossplane composition function package names — one ECR repository is created
