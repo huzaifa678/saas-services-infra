@@ -20,3 +20,9 @@ variable "keycloak_client_id" {
   description = "OIDC client id for the portal (matches the Keycloak client)."
   default     = "backstage"
 }
+
+variable "generate_secrets_in_cluster" {
+  type        = bool
+  description = "When true, omit KEYCLOAK_CLIENT_SECRET and ARGOCD_AUTH_TOKEN from the backstage-app secret because the CD repo's backstage chart generates them in-cluster (secretGeneration.enabled). You then stop seeding them into saas/backstage-input."
+  default     = false
+}
