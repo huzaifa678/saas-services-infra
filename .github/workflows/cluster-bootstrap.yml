@@ -52,6 +52,7 @@ jobs:
 
     defaults:
       run:
+        shell: bash
         working-directory: live/${{ inputs.environment }}/45-rbac
 
     steps:
