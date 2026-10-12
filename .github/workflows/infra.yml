@@ -38,20 +38,10 @@ jobs:
       layer: 00-network
     secrets: inherit
 
-  l05-ecr:
-    name: 05-ecr
-    needs: l00-network
-    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l00-network.result == 'success') || inputs.target == '05-ecr') }}
-    uses: ./.github/workflows/_apply-layer.yml
-    with:
-      environment: ${{ inputs.environment }}
-      layer: 05-ecr
-    secrets: inherit
-
   l10-platform:
     name: 10-platform
-    needs: l05-ecr
-    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l05-ecr.result == 'success') || inputs.target == '10-platform') }}
+    needs: l00-network
+    if: ${{ always() && !cancelled() && ((inputs.target == 'all' && needs.l00-network.result == 'success') || inputs.target == '10-platform') }}
     uses: ./.github/workflows/_apply-layer.yml
     with:
       environment: ${{ inputs.environment }}
