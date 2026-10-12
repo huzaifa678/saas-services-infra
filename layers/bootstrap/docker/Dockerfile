@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      ca-certificates curl unzip git jq python3 python3-pip bash; \
+      ca-certificates curl unzip git jq python3 python3-pip bash make; \
     rm -rf /var/lib/apt/lists/*
 
 # Terraform
