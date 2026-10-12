@@ -32,6 +32,7 @@ resource "aws_ecr_repository" "runner" {
 
   lifecycle {
     prevent_destroy = false
+    ignore_changes = [encryption_configuration]
   }
 }
 
