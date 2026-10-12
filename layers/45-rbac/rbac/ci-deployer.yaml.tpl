@@ -33,6 +33,15 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingressclasses"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # Cluster-scoped CRs the platform charts create by name: the AWS Load Balancer
+  # Controller's IngressClassParams ("alb") and NGINX Gateway Fabric's GatewayClass
+  # ("nginx"). Helm GETs these on install, so the deployer needs them cluster-wide.
+  - apiGroups: ["elbv2.k8s.aws"]
+    resources: ["ingressclassparams"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gatewayclasses"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
