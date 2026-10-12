@@ -18,16 +18,18 @@ lifecycle is independent of `00-network`.
 
 - **`bootstrap`** → `ecr_repository_arn`, `toolchain_repository_url` (the image to pull).
 - **`00-network`** → `vpc_id`, `vpc_cidr`, `private_route_table_ids` (the peer + return routes).
-- **`10-platform`** → `cluster_security_group_id`, `cluster_endpoint` (443 ingress + private DNS).
+- **`10-platform`** → `cluster_security_group_id` (443 ingress).
 
 ## Reachability model
 
 Humans reach the private API via AWS Verified Access; **CI reaches it via this peered
 runner VPC**. The peering module wires all three requirements — the connection,
-bidirectional routes, and the EKS private-hosted-zone association — plus the cluster-SG
-443 ingress. If EKS named its private hosted zone differently from the API endpoint
-FQDN, set `eks_private_zone_name`; to manage that DNS out-of-band, set
-`associate_eks_private_zone = false`.
+bidirectional routes, and cross-VPC DNS resolution over the peering — plus the
+cluster-SG 443 ingress. DNS uses peering resolution rather than a hosted-zone
+association because modern EKS puts the API endpoint's private hosted zone in an
+AWS-service-owned account (`Owner.OwningService = eks.amazonaws.com`), which cannot
+be looked up or associated from this account. To manage that DNS out-of-band, set
+`enable_peering_dns_resolution = false`.
 
 ## Registration auth: GitHub App (no user PAT)
 

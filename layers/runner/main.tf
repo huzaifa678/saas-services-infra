@@ -21,11 +21,71 @@ locals {
   }
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+locals {
+  # Auto Scaling's service-linked role; it (not the instance role) encrypts the
+  # ASG instances' EBS volumes with this CMK, so the key policy must authorize it.
+  autoscaling_slr_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+}
+
+# Key policy: default root/IAM delegation PLUS the Auto Scaling service-linked
+# role. Without the SLR statements the ASG cannot create a grant to encrypt the
+# runner's root volume and every launch is terminated with
+# Client.InvalidKMSKey.InvalidState, so the ASG never reaches healthy capacity.
+data "aws_iam_policy_document" "runner_kms" {
+  statement {
+    sid       = "EnableIAMUserPermissions"
+    effect    = "Allow"
+    actions   = ["kms:*"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+
+  statement {
+    sid    = "AllowAutoScalingSLRUseOfKey"
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+      "kms:DescribeKey",
+    ]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = [local.autoscaling_slr_arn]
+    }
+  }
+
+  statement {
+    sid       = "AllowAutoScalingSLRCreateGrant"
+    effect    = "Allow"
+    actions   = ["kms:CreateGrant"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = [local.autoscaling_slr_arn]
+    }
+    condition {
+      test     = "Bool"
+      variable = "kms:GrantIsForAWSResource"
+      values   = ["true"]
+    }
+  }
+}
+
 # Dedicated CMK for the runner's PAT secret and root volume (self-contained).
 resource "aws_kms_key" "runner" {
   description             = "${local.name} CI runner encryption (PAT secret + EBS)"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.runner_kms.json
   tags                    = local.tags
 }
 
@@ -81,10 +141,8 @@ module "peering" {
   app_vpc_cidr        = var.app_vpc_cidr
   app_route_table_ids = var.app_route_table_ids
 
-  cluster_security_group_id  = var.cluster_security_group_id
-  cluster_endpoint           = var.cluster_endpoint
-  associate_eks_private_zone = var.associate_eks_private_zone
-  eks_private_zone_name      = var.eks_private_zone_name
+  cluster_security_group_id     = var.cluster_security_group_id
+  enable_peering_dns_resolution = var.enable_peering_dns_resolution
 
   tags = local.tags
 }

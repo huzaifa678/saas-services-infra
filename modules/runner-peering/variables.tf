@@ -37,21 +37,10 @@ variable "cluster_security_group_id" {
 }
 
 # ── Private DNS ──────────────────────────────────────────────────────────────
-variable "associate_eks_private_zone" {
-  description = "Associate the EKS private hosted zone with the runner VPC so the API FQDN resolves. Disable to manage DNS out-of-band."
+variable "enable_peering_dns_resolution" {
+  description = "Enable cross-VPC DNS resolution over the peering so the runner VPC resolves the app VPC's private EKS API endpoint. Disable to manage DNS out-of-band."
   type        = bool
   default     = true
-}
-
-variable "cluster_endpoint" {
-  description = "EKS API endpoint; the private hosted zone name is derived from it unless eks_private_zone_name is set."
-  type        = string
-}
-
-variable "eks_private_zone_name" {
-  description = "Override for the EKS private hosted zone name (no scheme, no trailing slash). Empty = derive from cluster_endpoint."
-  type        = string
-  default     = ""
 }
 
 variable "tags" {

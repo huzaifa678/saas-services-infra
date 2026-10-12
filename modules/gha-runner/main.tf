@@ -82,6 +82,20 @@ data "aws_iam_policy_document" "host" {
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_secretsmanager_secret.runner_app_key.arn]
   }
+
+  # The app-key secret is encrypted with the runner CMK, so GetSecretValue also
+  # needs kms:Decrypt on that key — without it the host boots healthy but the
+  # user-data GetSecretValue fails ("Access to KMS is not allowed") and the
+  # runner never registers.
+  dynamic "statement" {
+    for_each = var.kms_key_arn != "" ? [1] : []
+    content {
+      sid       = "DecryptRunnerAppKey"
+      effect    = "Allow"
+      actions   = ["kms:Decrypt"]
+      resources = [var.kms_key_arn]
+    }
+  }
   statement {
     sid       = "EcrAuthToken"
     effect    = "Allow"

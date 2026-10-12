@@ -18,8 +18,9 @@ terraform {
 # peering:
 #   1. the peering connection,
 #   2. routes in BOTH VPCs (runner -> app CIDR, app -> runner CIDR),
-#   3. DNS: associate the EKS private hosted zone with the runner VPC, else the
-#      API endpoint FQDN won't resolve to the private ENIs from the runner side.
+#   3. DNS: cross-VPC resolution over the peering, so the EKS private endpoint
+#      FQDN resolves to the private ENIs from the runner side (see below for why
+#      the zone can't simply be associated).
 # Plus a 443 ingress on the cluster security group from the runner CIDR.
 # ===========================================================================
 
@@ -60,26 +61,23 @@ resource "aws_vpc_security_group_ingress_rule" "api_from_runner" {
 }
 
 # ── Private DNS ──────────────────────────────────────────────────────────────
-# Associate the EKS-managed private hosted zone (named after the API endpoint
-# FQDN) with the runner VPC so `aws eks get-token` + kubectl resolve the private
-# ENIs. Default: derive the zone name from the endpoint; override if EKS named it
-# differently. Set associate_eks_private_zone=false to manage DNS out-of-band.
-locals {
-  derived_zone_name = replace(replace(var.cluster_endpoint, "https://", ""), "/", "")
-  zone_name         = var.eks_private_zone_name != "" ? var.eks_private_zone_name : local.derived_zone_name
-}
+# Let the runner VPC resolve the private EKS API FQDN (so `aws eks get-token` +
+# kubectl hit the private ENIs). Modern EKS puts the API endpoint's private
+# hosted zone in an AWS-SERVICE-OWNED account (Owner.OwningService =
+# eks.amazonaws.com) and associates it with the cluster VPC; it is NOT visible in
+# this account and cannot be looked up or associated with another VPC. So instead
+# of associating the zone, we turn on cross-VPC DNS resolution over the peering:
+# with accepter (app VPC) resolution enabled, queries from the requester (runner)
+# VPC resolve against the private hosted zones associated with the app VPC,
+# including that service-owned EKS zone. Disable to manage DNS out-of-band.
+resource "aws_vpc_peering_connection_options" "this" {
+  count = var.enable_peering_dns_resolution ? 1 : 0
 
-data "aws_route53_zone" "eks_private" {
-  count = var.associate_eks_private_zone ? 1 : 0
+  vpc_peering_connection_id = aws_vpc_peering_connection.this.id
 
-  name         = local.zone_name
-  private_zone = true
-  vpc_id       = var.app_vpc_id
-}
-
-resource "aws_route53_zone_association" "runner" {
-  count = var.associate_eks_private_zone ? 1 : 0
-
-  zone_id = data.aws_route53_zone.eks_private[0].zone_id
-  vpc_id  = var.runner_vpc_id
+  # App VPC side (accepter): allow the peer (runner) VPC to resolve the app VPC's
+  # private DNS, i.e. the EKS private endpoint.
+  accepter {
+    allow_remote_vpc_dns_resolution = true
+  }
 }

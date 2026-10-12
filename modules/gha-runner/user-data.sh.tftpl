@@ -22,13 +22,24 @@ RUNNER_NAME="${runner_name}"
 RUNNER_VERSION="${runner_version}"
 ECR_REGISTRY="${ecr_registry}"
 
-dnf install -y docker git jq tar gzip openssl
+# libicu is required by the GitHub Actions runner (.NET Core); AL2023 omits it by
+# default, so config.sh aborts with "Libicu's dependencies is missing" without it.
+# amazon-ecr-credential-helper lets docker fetch ECR creds on demand (see below).
+dnf install -y docker git jq tar gzip openssl libicu amazon-ecr-credential-helper
 systemctl enable --now docker
-
-aws ecr get-login-password --region "$${REGION}" | docker login --username AWS --password-stdin "$${ECR_REGISTRY}"
 
 useradd -m -s /bin/bash runner || true
 usermod -aG docker runner
+
+install -d -o runner -g runner /home/runner/.docker
+cat > /home/runner/.docker/config.json <<JSON
+{ "credHelpers": { "$${ECR_REGISTRY}": "ecr-login" } }
+JSON
+chown runner:runner /home/runner/.docker/config.json
+install -d /root/.docker
+cat > /root/.docker/config.json <<JSON
+{ "credHelpers": { "$${ECR_REGISTRY}": "ecr-login" } }
+JSON
 install -d -o runner -g runner /home/runner/actions-runner
 cd /home/runner/actions-runner
 curl -sSL -o runner.tar.gz \

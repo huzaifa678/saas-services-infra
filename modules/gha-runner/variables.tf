@@ -54,9 +54,9 @@ variable "instance_type" {
 }
 
 variable "runner_version" {
-  description = "Pinned actions-runner release."
+  description = "Pinned actions-runner release. Must be >= GitHub's enforced minimum (2.329.0 as of 2026-02) or config.sh is rejected at registration."
   type        = string
-  default     = "2.328.0"
+  default     = "2.338.0"
 }
 
 variable "ecr_repository_arn" {
