@@ -96,6 +96,10 @@ variable "ava_policy_document" {
 
 # ── Inputs supplied by Terragrunt dependency blocks (from 00-network) ─────────
 variable "cluster_name" { type = string }
+variable "cluster_security_group_id" {
+  type    = string
+  default = ""
+}
 variable "vpc_id" { type = string }
 variable "vpc_cidr" { type = string }
 variable "public_subnets" { type = list(string) }

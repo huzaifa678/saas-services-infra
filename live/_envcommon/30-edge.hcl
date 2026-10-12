@@ -14,10 +14,19 @@ dependency "network" {
   }
 }
 
+dependency "platform" {
+  config_path                             = "../10-platform"
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
+  mock_outputs = {
+    cluster_security_group_id = "sg-mock"
+  }
+}
+
 inputs = {
-  cluster_name   = dependency.network.outputs.cluster_name
-  vpc_id         = dependency.network.outputs.vpc_id
-  vpc_cidr       = dependency.network.outputs.vpc_cidr
-  public_subnets = dependency.network.outputs.public_subnets
-  kms_key_arn    = dependency.network.outputs.kms_key_arn
+  cluster_name              = dependency.network.outputs.cluster_name
+  vpc_id                    = dependency.network.outputs.vpc_id
+  vpc_cidr                  = dependency.network.outputs.vpc_cidr
+  public_subnets            = dependency.network.outputs.public_subnets
+  kms_key_arn               = dependency.network.outputs.kms_key_arn
+  cluster_security_group_id = dependency.platform.outputs.cluster_security_group_id
 }

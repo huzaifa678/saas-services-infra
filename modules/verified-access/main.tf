@@ -131,6 +131,24 @@ resource "aws_vpc_security_group_egress_rule" "ava_to_eks_api" {
   tags = var.tags
 }
 
+# The EKS cluster security group must ALLOW 443 inbound from the AVA endpoint ENIs,
+# or the forwarded packets are dropped and kubectl just times out. The egress rule
+# above only opens the AVA side; this is the matching ingress on the EKS side
+# (mirrors modules/runner-peering's api_from_runner rule). Skipped when no cluster
+# SG is supplied, so the ingress can be managed out-of-band instead.
+resource "aws_vpc_security_group_ingress_rule" "eks_api_from_ava" {
+  count = var.eks_cluster_security_group_id != "" ? 1 : 0
+
+  security_group_id            = var.eks_cluster_security_group_id
+  description                  = "EKS API (443) from the Verified Access endpoint"
+  referenced_security_group_id = aws_security_group.ava_endpoint.id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
+
+  tags = var.tags
+}
+
 # A `cidr` endpoint, not `network-interface`. The previous implementation declared
 # endpoint_type = "network-interface" with no network_interface_options block,
 # which the provider rejects, and never consumed the subnet ids it was passed.

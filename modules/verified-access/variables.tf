@@ -8,6 +8,12 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "eks_cluster_security_group_id" {
+  description = "EKS cluster security group to open 443 on, inbound from the AVA endpoint ENIs. Empty skips the rule (manage that ingress out-of-band)."
+  type        = string
+  default     = ""
+}
+
 variable "endpoint_subnet_ids" {
   description = <<-EOT
     Subnets in which AVA places the endpoint ENIs. These must be able to route to

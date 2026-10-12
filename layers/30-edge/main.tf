@@ -52,10 +52,11 @@ module "verified_access" {
   # pre-existing configuration used.
   name_prefix = var.cluster_name
 
-  vpc_id              = var.vpc_id
-  endpoint_subnet_ids = var.public_subnets
-  eks_api_cidr        = local.eks_api_cidr
-  kms_key_arn         = var.kms_key_arn
+  vpc_id                        = var.vpc_id
+  endpoint_subnet_ids           = var.public_subnets
+  eks_api_cidr                  = local.eks_api_cidr
+  eks_cluster_security_group_id = var.cluster_security_group_id
+  kms_key_arn                   = var.kms_key_arn
 
   cidr_endpoints_custom_subdomain = var.ava_custom_subdomain
 
