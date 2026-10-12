@@ -21,12 +21,15 @@ on:
         options:
           - all
           - 00-network
-          - 05-ecr
           - 10-platform
           - 20-data
           - 30-edge
           - 40-observability
           - 50-addons-helm
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   l00-network:
