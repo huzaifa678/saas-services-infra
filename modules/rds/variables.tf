@@ -35,7 +35,7 @@ variable "allocated_storage" {
 variable "engine_version" {
   type        = string
   description = "PostgreSQL engine version."
-  default     = "16.6"
+  default     = "16.9"
 }
 
 variable "subnet_ids" {

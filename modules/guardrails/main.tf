@@ -208,7 +208,7 @@ locals {
     dev = {
       rds_instance_class        = "db.t4g.micro"
       rds_allocated_storage     = 20
-      msk_broker_instance_type  = "kafka.t3.small"
+      msk_broker_instance_type  = "kafka.m7g.large"
       msk_broker_count          = 2
       elasticache_node_type     = "cache.t4g.micro"
       elasticache_num_replicas  = 0
@@ -250,7 +250,7 @@ locals {
     launch_lite = {
       rds_instance_class        = "db.t4g.medium"
       rds_allocated_storage     = 60
-      msk_broker_instance_type  = "kafka.t3.small"
+      msk_broker_instance_type  = "kafka.m7g.large"
       msk_broker_count          = 2
       elasticache_node_type     = "cache.t4g.medium"
       elasticache_num_replicas  = 1
