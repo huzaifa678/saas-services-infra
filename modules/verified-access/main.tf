@@ -23,6 +23,11 @@ locals {
       try(var.oidc_endpoint_overrides.user_info_endpoint, null),
       "${var.oidc_issuer}/userinfo",
     )
+    # Required by native-application OIDC (the flow TCP/cidr endpoints must use).
+    public_signing_key_endpoint = coalesce(
+      try(var.oidc_endpoint_overrides.public_signing_key_endpoint, null),
+      "${var.oidc_issuer}/.well-known/jwks.json",
+    )
   }
 
   policy_reference_name = "oidc"
@@ -44,14 +49,18 @@ resource "aws_verifiedaccess_trust_provider" "oidc" {
   user_trust_provider_type = "oidc"
   policy_reference_name    = local.policy_reference_name
 
-  oidc_options {
-    issuer                 = var.oidc_issuer
-    authorization_endpoint = local.oidc.authorization_endpoint
-    token_endpoint         = local.oidc.token_endpoint
-    user_info_endpoint     = local.oidc.user_info_endpoint
-    client_id              = var.oidc_client_id
-    client_secret          = var.oidc_client_secret
-    scope                  = var.oidc_scope
+  # cidr/TCP endpoints require the native-application OIDC flow (device-code style
+  # via the AWS Verified Access client), not the browser `oidc_options` flow —
+  # AWS rejects a TCP endpoint whose trust provider lacks NativeApplicationOidcOptions.
+  native_application_oidc_options {
+    issuer                      = var.oidc_issuer
+    authorization_endpoint      = local.oidc.authorization_endpoint
+    token_endpoint              = local.oidc.token_endpoint
+    user_info_endpoint          = local.oidc.user_info_endpoint
+    public_signing_key_endpoint = local.oidc.public_signing_key_endpoint
+    client_id                   = var.oidc_client_id
+    client_secret               = var.oidc_client_secret
+    scope                       = var.oidc_scope
   }
 
   sse_specification {
@@ -169,7 +178,7 @@ resource "aws_verifiedaccess_instance_logging_configuration" "this" {
 
   access_logs {
     include_trust_context = var.log_include_trust_context
-    log_version           = "ocsf-1.1.0"
+    log_version           = "ocsf-1.0.0-rc.2"
 
     cloudwatch_logs {
       enabled   = true
