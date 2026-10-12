@@ -19,8 +19,8 @@ locals {
   }
 
   ava = {
-    oidc_issuer = "dev-oqegk1bhhostcaj0.us.auth0.com" # TODO: replacement to be done
+    oidc_issuer = "dev-oqegk1bhhostcaj0.us.auth0.com" 
 
-    custom_subdomain = "ava.freeeasycrypto.com"
+    custom_subdomain = "ava-test.freeeasycrypto.com"
   }
 }
