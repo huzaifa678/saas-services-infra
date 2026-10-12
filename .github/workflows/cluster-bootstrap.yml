@@ -57,6 +57,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Inside the toolchain container the checkout is owned by a different uid
+      # than the user running git, so git refuses it as "dubious ownership" and
+      # Terragrunt's get_repo_root() (git rev-parse) fails. Mark it safe first.
+      - name: Trust the workspace checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Configure AWS credentials (OIDC → gated cluster-admin role)
         uses: aws-actions/configure-aws-credentials@v6
         with:
