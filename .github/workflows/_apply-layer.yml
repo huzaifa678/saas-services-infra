@@ -55,8 +55,13 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region:     us-east-1
 
-      # The toolchain image already pins terragrunt/terraform; only install it on
-      # the GitHub-hosted path.
+      - name: Setup Terraform
+        if: ${{ !inputs.run_in_toolchain }}
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.14.8"
+          terraform_wrapper: false
+
       - name: Setup Terragrunt
         if: ${{ !inputs.run_in_toolchain }}
         uses: ./.github/actions/setup-terragrunt
