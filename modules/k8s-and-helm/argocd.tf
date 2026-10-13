@@ -8,8 +8,7 @@ resource "helm_release" "argocd" {
   wait             = true
 
   depends_on = [
-    var.eks_node_group,
-    kubectl_manifest.gateway_api_crds
+    var.eks_node_group
   ]
 }
 

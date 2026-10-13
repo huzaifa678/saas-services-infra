@@ -89,13 +89,11 @@ provider "helm" {
 module "k8s" {
   source = "../../modules/k8s-and-helm"
 
+  environment      = var.environment
   cluster_name     = var.cluster_name
   cluster_endpoint = var.cluster_endpoint
   cluster_ca       = var.cluster_ca
   eks_node_group   = var.eks_node_group
-
-  vpc_id = var.vpc_id
-  region = var.region
 
   karpenter_interruption_queue_name = var.karpenter_interruption_queue_name
 

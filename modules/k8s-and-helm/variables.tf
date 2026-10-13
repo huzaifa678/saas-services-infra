@@ -1,5 +1,10 @@
 # no default variables set yet
 
+variable "environment" {
+  description = "Infra tier (dev|test|prod). Maps to the CD-repo env label (test -> staging)."
+  type        = string
+}
+
 variable "cluster_name" {
   type = string
 }
@@ -14,14 +19,6 @@ variable "cluster_ca" {
 
 variable "eks_node_group" {
   type = any
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "region" {
-  type = string
 }
 
 variable "auth_provider" {
