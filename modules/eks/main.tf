@@ -114,10 +114,14 @@ module "eks" {
       vpc_security_group_ids = [var.eks_nodes_sg_id]
 
       # IMDSv2 required (blocks SSRF credential theft). Guardrails mandates this.
+      # hop_limit 2 (not 1): pods on the VPC CNI reach IMDS over an extra network
+      # hop, so controllers that read the region/metadata from IMDS (karpenter,
+      # aws-load-balancer-controller) fail with "ec2imds GetRegion deadline" at
+      # hop_limit 1. IMDSv2 is still enforced via http_tokens=required.
       metadata_options = {
         http_endpoint               = "enabled"
         http_tokens                 = "required"
-        http_put_response_hop_limit = 1
+        http_put_response_hop_limit = 2
       }
     }
   }
