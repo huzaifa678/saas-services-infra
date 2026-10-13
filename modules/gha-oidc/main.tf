@@ -148,6 +148,18 @@ resource "aws_iam_role_policy_attachment" "tf_apply" {
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/${var.apply_managed_policy}"
 }
 
+# The apply role provisions the platform's IAM -- the EKS cluster/node-group
+# roles and every IRSA role (karpenter, cert-manager, external-dns,
+# external-secrets, LB controller, EBS CSI, crossplane) plus their policies and
+# Karpenter's instance profile. PowerUserAccess explicitly excludes all of iam:*
+# (NotAction: iam:*), so IAM-creating layers (10-platform) fail GetRole/GetPolicy/
+# CreateRole as tf-apply. IAMFullAccess restores IAM management (and subsumes the
+# earlier standalone iam:PassRole grant the ADOT addon needed).
+resource "aws_iam_role_policy_attachment" "tf_apply_iam" {
+  role       = aws_iam_role.tf_apply.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/IAMFullAccess"
+}
+
 resource "aws_iam_role_policy" "tf_apply_state" {
   name   = "${var.name}-gha-tf-apply-state"
   role   = aws_iam_role.tf_apply.id
