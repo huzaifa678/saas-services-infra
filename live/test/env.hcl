@@ -10,6 +10,11 @@ locals {
   auth_provider = "keycloak"
   observability = ["elk"]
 
+  # test additionally runs the standalone auth-service.
+  extra_databases = {
+    auth = { name = "saas-auth-db", db_name = "auth_db", db_username = "auth_user", password = null }
+  }
+
   # Cost-optimised launch footprint for test.
   # Grow to `growth` capacity tier as scale increases.
   capacity_tier = "launch_lite"
@@ -19,7 +24,8 @@ locals {
   }
 
   ava = {
-    oidc_issuer = "dev-oqegk1bhhostcaj0.us.auth0.com" 
+    # Must match the token's `iss` claim EXACTLY, including Auth0's trailing slash.
+    oidc_issuer = "https://dev-oqegk1bhhostcaj0.us.auth0.com/"
 
     custom_subdomain = "ava-test.freeeasycrypto.com"
   }

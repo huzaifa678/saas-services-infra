@@ -141,6 +141,15 @@ locals {
     var.auth_provider == "keycloak" ? {
       keycloak = { name = "keycloak-db", db_name = "keycloak_db", db_username = "keycloak_user", password = null }
     } : {},
+    # Secondary auth backend: an env can run both keycloak and auth-service by
+    # declaring the auth DB here (see live/test/env.hcl) without flipping the
+    # mutually-exclusive auth_provider enum, which drives SSO/ArgoCD/platform wiring.
+    { for k, d in var.extra_databases : k => {
+      name        = d.name
+      db_name     = d.db_name
+      db_username = d.db_username
+      password    = d.password
+    } },
   )
 }
 

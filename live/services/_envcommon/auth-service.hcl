@@ -6,8 +6,6 @@ terraform {
   source = "${get_repo_root()}//auth-service"
 }
 
-# auth-service is only deployed where the platform's auth_provider is
-# "auth-service" (test). In keycloak envs (prod) there is no auth DB to read.
 dependency "data" {
   config_path                             = "../../../${local.env}/20-data"
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]

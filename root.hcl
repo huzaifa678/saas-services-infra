@@ -62,4 +62,5 @@ inputs = merge(
   },
   try(local.env_vars.locals.auth_provider, null) != null ? { auth_provider = local.env_vars.locals.auth_provider } : {},
   try(local.env_vars.locals.observability, null) != null ? { observability = local.env_vars.locals.observability } : {},
+  try(local.env_vars.locals.extra_databases, null) != null ? { extra_databases = local.env_vars.locals.extra_databases } : {},
 )

@@ -72,6 +72,17 @@ variable "auth_provider" {
   default     = "keycloak"
 }
 
+variable "extra_databases" {
+  description = "Additional databases to provision beyond the auth_provider-driven set, keyed by name. Lets an env run a secondary auth backend (e.g. test runs both keycloak AND auth-service): set the auth DB here while keeping auth_provider = keycloak. Merged into the base set; keys here win on collision."
+  type = map(object({
+    name        = string
+    db_name     = string
+    db_username = string
+    password    = optional(string)
+  }))
+  default = {}
+}
+
 variable "observability" {
   description = "Subset of [elk, grafana] — self-hosted observability stacks this cluster runs."
   type        = list(string)
