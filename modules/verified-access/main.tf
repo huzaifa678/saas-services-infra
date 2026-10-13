@@ -10,23 +10,29 @@ terraform {
 }
 
 locals {
+  # AVA compares the token's `iss` claim against var.oidc_issuer literally (native
+  # OIDC uses explicit endpoints, not discovery), so the issuer must match the IdP
+  # exactly -- including a trailing slash (Auth0's iss is https://TENANT/). Endpoints
+  # are built from a slash-trimmed base so a trailing slash never yields `//path`.
+  issuer_base = trimsuffix(var.oidc_issuer, "/")
+
   oidc = {
     authorization_endpoint = coalesce(
       try(var.oidc_endpoint_overrides.authorization_endpoint, null),
-      "${var.oidc_issuer}/authorize",
+      "${local.issuer_base}/authorize",
     )
     token_endpoint = coalesce(
       try(var.oidc_endpoint_overrides.token_endpoint, null),
-      "${var.oidc_issuer}/oauth/token",
+      "${local.issuer_base}/oauth/token",
     )
     user_info_endpoint = coalesce(
       try(var.oidc_endpoint_overrides.user_info_endpoint, null),
-      "${var.oidc_issuer}/userinfo",
+      "${local.issuer_base}/userinfo",
     )
     # Required by native-application OIDC (the flow TCP/cidr endpoints must use).
     public_signing_key_endpoint = coalesce(
       try(var.oidc_endpoint_overrides.public_signing_key_endpoint, null),
-      "${var.oidc_issuer}/.well-known/jwks.json",
+      "${local.issuer_base}/.well-known/jwks.json",
     )
   }
 
@@ -91,6 +97,10 @@ resource "aws_verifiedaccess_group" "eks_api" {
   # The group's policy references the trust provider's policy_reference_name, so
   # the attachment must exist before the policy can be evaluated.
   depends_on = [aws_verifiedaccess_instance_trust_provider_attachment.this]
+
+  lifecycle {
+    replace_triggered_by = [aws_verifiedaccess_trust_provider.oidc.id]
+  }
 }
 
 # Ingress is 443 from the internet by design: this endpoint *is* the public front
@@ -177,6 +187,17 @@ resource "aws_verifiedaccess_endpoint" "eks_api" {
   }
 
   tags = merge(var.tags, { Name = "${var.name_prefix}-ava-eks-api-endpoint" })
+
+  # AWS refuses to delete a group that still has endpoints
+  # ("VerifiedAccessGroup is not empty. Please remove all VerifiedAccessEndpoints").
+  # When the group is replaced, the provider would otherwise only update this
+  # endpoint's group_id in place -- which leaves it pointing at the old group while
+  # Terraform tries to delete that group. Replacing the endpoint alongside the group
+  # forces it to be destroyed first, so the teardown runs endpoint -> group ->
+  # attachment and the group is empty when it is deleted.
+  lifecycle {
+    replace_triggered_by = [aws_verifiedaccess_group.eks_api.id]
+  }
 }
 
 resource "aws_cloudwatch_log_group" "ava" {
