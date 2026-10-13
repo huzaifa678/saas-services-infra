@@ -8,10 +8,23 @@ terraform {
 }
 
 # ── ADOT EKS Add-on ──────────────────────────────────────────────────────────
+# Resolve the ADOT addon version from the cluster's actual Kubernetes version
+# instead of a hardcoded pin (a pin rots the moment the cluster is upgraded and
+# AWS stops supporting the old build -> "Addon version specified is not supported").
+data "aws_eks_cluster" "this" {
+  name = var.cluster_name
+}
+
+data "aws_eks_addon_version" "adot" {
+  addon_name         = "adot"
+  kubernetes_version = data.aws_eks_cluster.this.version
+  most_recent        = true
+}
+
 resource "aws_eks_addon" "adot" {
   cluster_name                = var.cluster_name
   addon_name                  = "adot"
-  addon_version               = "v0.102.1-eksbuild.1"
+  addon_version               = data.aws_eks_addon_version.adot.version
   service_account_role_arn    = var.otel_collector_irsa_role_arn
   resolve_conflicts_on_create = "OVERWRITE"
 }
