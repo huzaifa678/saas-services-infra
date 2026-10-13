@@ -54,5 +54,4 @@ inputs = {
   app_route_table_ids = dependency.network.outputs.private_route_table_ids
 
   cluster_security_group_id = dependency.platform.outputs.cluster_security_group_id
-  cluster_endpoint          = dependency.platform.outputs.cluster_endpoint
 }
