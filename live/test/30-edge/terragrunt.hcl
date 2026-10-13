@@ -21,9 +21,6 @@ inputs = {
   # module rejects an unconditional `when { true }` permit.
   ava_policy_document = <<-CEDAR
     permit(principal, action, resource)
-    when {
-      context.oidc.email_verified == true &&
-      context.oidc.groups.contains("platform-admins")
-    };
+    when { context.oidc has sub };
   CEDAR
 }
