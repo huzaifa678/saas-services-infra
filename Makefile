@@ -12,6 +12,13 @@ MODULES    := guardrails node-security-group data-security-groups verified-acces
               runner-vpc runner-peering ecr kms
 POLICY_DIR := policy
 
+# Terragrunt's concurrency-safe provider cache server. `run --all` fans out many
+# `terraform init`s in parallel; without this they race the shared native
+# plugin_cache_dir (~/.terraformrc) and corrupt it -- half-written provider
+# binaries surface as "exec format error" or lock-file checksum mismatches.
+# This server serializes provider installs safely. Override with TG_CACHE= to disable.
+TG_CACHE   ?= --provider-cache
+
 .PHONY: help
 help:
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -79,17 +86,17 @@ policy-test: opa-fmt-check opa-test checkov-test ## All hermetic policy tests
 .PHONY: plan
 plan: 
 	@test -n "$(LAYER)" || { echo "LAYER is required, e.g. make plan ENV=prod LAYER=20-data"; exit 1; }
-	terragrunt plan --working-dir $(UNIT)
+	terragrunt plan $(TG_CACHE) --working-dir $(UNIT)
 
 .PHONY: apply
 apply:
 	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
-	terragrunt apply --working-dir $(UNIT) $(TG_ARGS)
+	terragrunt apply $(TG_CACHE) --working-dir $(UNIT) $(TG_ARGS)
 
 .PHONY: destroy
 destroy:
 	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
-	terragrunt destroy --working-dir $(UNIT) $(TG_ARGS)
+	terragrunt destroy $(TG_CACHE) --working-dir $(UNIT) $(TG_ARGS)
 
 # ── Runner registration (GitHub App) ─────────────────────────────────────────
 # One-shot post-apply for the `runner` layer: seed the GitHub App private key and
@@ -109,30 +116,40 @@ register-runner: ## Seed the runner's GitHub App key + cycle the ASG: make regis
 
 .PHONY: plan-all
 plan-all:
-	terragrunt run-all plan --working-dir $(LIVE) --non-interactive
+	terragrunt run --all plan $(TG_CACHE) --working-dir $(LIVE) --non-interactive
 
 .PHONY: apply-all
 apply-all:
-	terragrunt run-all apply --working-dir $(LIVE)
+	# Warm the provider cache first: the cache server serializes the download so
+	# the parallel apply below never races a cold cache ("no package cached").
+	terragrunt run --all init $(TG_CACHE) --working-dir $(LIVE) --non-interactive
+	terragrunt run --all apply $(TG_CACHE) --working-dir $(LIVE)
 
 .PHONY: destroy-all
 destroy-all:
-	terragrunt run-all destroy --working-dir $(LIVE)
+	terragrunt run --all destroy $(TG_CACHE) --working-dir $(LIVE)
 
 # ── Services (separate tree: live/services/<env>/<service>) ───────────────────
 .PHONY: svc-plan
 svc-plan: ## make svc-plan ENV=test SERVICE=api-gateway
 	@test -n "$(SERVICE)" || { echo "SERVICE is required, e.g. make svc-plan ENV=test SERVICE=api-gateway"; exit 1; }
-	terragrunt plan --working-dir live/services/$(ENV)/$(SERVICE)
+	terragrunt plan $(TG_CACHE) --working-dir live/services/$(ENV)/$(SERVICE)
 
 .PHONY: svc-apply
 svc-apply: ## make svc-apply ENV=test SERVICE=api-gateway
 	@test -n "$(SERVICE)" || { echo "SERVICE is required"; exit 1; }
-	terragrunt apply --working-dir live/services/$(ENV)/$(SERVICE)
+	terragrunt apply $(TG_CACHE) --working-dir live/services/$(ENV)/$(SERVICE)
 
 .PHONY: svc-plan-all
 svc-plan-all: ## Plan every service in ENV (dependency mocks fill the platform)
-	terragrunt run-all plan --working-dir live/services/$(ENV) --non-interactive
+	terragrunt run --all plan $(TG_CACHE) --working-dir live/services/$(ENV) --non-interactive
+
+.PHONY: svc-apply-all
+svc-apply-all: ## make svc-apply-all ENV=test — apply every service's saas/<svc> secret (needs 20-data + seed-secrets first)
+	# Warm the provider cache first (see apply-all) so the parallel apply never
+	# races a cold cache.
+	terragrunt run --all init $(TG_CACHE) --working-dir live/services/$(ENV) --non-interactive
+	terragrunt run --all apply $(TG_CACHE) --working-dir live/services/$(ENV)
 
 .PHONY: conftest
 conftest: 
