@@ -38,8 +38,8 @@ resource "aws_secretsmanager_secret_version" "backstage_app" {
       BACKEND_SECRET            = base64encode(random_password.backend_secret.result)
     },
     var.generate_secrets_in_cluster ? {} : {
-      KEYCLOAK_CLIENT_SECRET = local.input.KEYCLOAK_CLIENT_SECRET
-      ARGOCD_AUTH_TOKEN      = local.input.ARGOCD_AUTH_TOKEN
+      KEYCLOAK_CLIENT_SECRET = try(local.input.KEYCLOAK_CLIENT_SECRET, null)
+      ARGOCD_AUTH_TOKEN      = try(local.input.ARGOCD_AUTH_TOKEN, null)
     },
   ))
 }
