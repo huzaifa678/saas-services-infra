@@ -50,6 +50,7 @@
 #   AUTO_APPROVE=1 scripts/teardown.sh <env>  # skip the confirmation prompt
 #   SKIP_K8S=1 scripts/teardown.sh <env>      # cluster already gone: AWS sweep only
 #   PURGE_SECRETS=1 scripts/teardown.sh <env> # also force-delete the env's out-of-band secrets
+#   KEEP_ECR=1 scripts/teardown.sh <env>      # preserve the 05-ecr layer + ALL images (skip emptying, exclude from destroy)
 #   REGION=us-west-2 scripts/teardown.sh <env>
 #
 #   <env> is one of dev | test | prod and is REQUIRED (no default — this is destructive).
@@ -76,7 +77,23 @@ AUTO_APPROVE="${AUTO_APPROVE:-0}"
 RUN_DESTROY="${RUN_DESTROY:-0}"
 SKIP_K8S="${SKIP_K8S:-0}"
 PURGE_SECRETS="${PURGE_SECRETS:-0}"   # force-delete the env's out-of-band secrets
+KEEP_ECR="${KEEP_ECR:-0}"             # preserve the 05-ecr layer + its images: skip emptying the repos AND exclude 05-ecr from destroy
 WAIT_SECS="${WAIT_SECS:-300}"   # per-wait timeout for LBs/nodes to drain
+
+# This terragrunt (1.x) has no run-all "exclude dir" flag, so when KEEP_ECR=1 we
+# destroy the units individually in reverse-dependency order, skipping 05-ecr (the
+# registry holding every built image — app services, api-gateway, backstage, the
+# crossplane functions and the per-env bootstrap-runner toolchain images). Order
+# derived from the dependency DAG under live/_envcommon (a unit is destroyed only
+# after everything that depends on it).
+#
+# 50-addons-helm and 45-rbac are intentionally OMITTED: they are purely in-cluster
+# (helm releases, RBAC, the OTel addon) and their providers can only reach the
+# PRIVATE EKS API, which is unreachable from outside the VPC. Their resources are
+# deleted when 10-platform tears down the EKS cluster, so destroying them here is
+# both impossible (API timeout) and unnecessary. Their terraform state is left
+# referencing now-gone resources (harmless; a re-provision just recreates them).
+keep_ecr_destroy_order=(30-edge 40-observability runner 20-data 10-platform 00-network bootstrap)
 
 for bin in terragrunt aws kubectl jq; do
   command -v "$bin" >/dev/null 2>&1 || { red "missing required tool: $bin"; exit 1; }
@@ -231,17 +248,22 @@ if [[ -n "$RUNNER_VPC_ID" ]]; then
 fi
 
 # ── ECR: empty the repositories so they can be destroyed ─────────────────────
-step "6. empty ECR repositories (force_delete=false means non-empty repos won't delete)"
-repos="$(terragrunt output -json ecr_repository_urls --working-dir "$live/05-ecr" 2>/dev/null | jq -r 'keys[]?' 2>/dev/null)"
-repos="$repos saas-${ENV}-bootstrap-runner"
-for r in $repos; do
-  [[ -z "$r" ]] && continue
-  ids="$(aws ecr list-images --repository-name "$r" --query 'imageIds[*]' --output json 2>/dev/null)"
-  if [[ -n "$ids" && "$ids" != "[]" && "$ids" != "null" ]]; then
-    echo "  emptying ecr repo $r"
-    aws ecr batch-delete-image --repository-name "$r" --image-ids "$ids" >/dev/null 2>&1 || true
-  fi
-done
+if [[ "$KEEP_ECR" == "1" ]]; then
+  step "6. KEEP_ECR=1 — preserving 05-ecr and ALL its images (not emptying any repo)"
+  yellow "  05-ecr layer is excluded from destroy; its repositories and images are kept intact."
+else
+  step "6. empty ECR repositories (force_delete=false means non-empty repos won't delete)"
+  repos="$(terragrunt output -json ecr_repository_urls --working-dir "$live/05-ecr" 2>/dev/null | jq -r 'keys[]?' 2>/dev/null)"
+  repos="$repos saas-${ENV}-bootstrap-runner"
+  for r in $repos; do
+    [[ -z "$r" ]] && continue
+    ids="$(aws ecr list-images --repository-name "$r" --query 'imageIds[*]' --output json 2>/dev/null)"
+    if [[ -n "$ids" && "$ids" != "[]" && "$ids" != "null" ]]; then
+      echo "  emptying ecr repo $r"
+      aws ecr batch-delete-image --repository-name "$r" --image-ids "$ids" >/dev/null 2>&1 || true
+    fi
+  done
+fi
 
 # ── RDS: clear deletion protection (on in test/prod per guardrails) ──────────
 step "7. disable RDS deletion protection for env=$ENV"
@@ -282,14 +304,31 @@ echo
 green "================================================================"
 green " pre-destroy cleanup complete for env=$ENV"
 green "================================================================"
+ni_flag=(); [[ "$AUTO_APPROVE" == "1" ]] && ni_flag=(--non-interactive)
 if [[ "$RUN_DESTROY" == "1" ]]; then
-  step "8. terragrunt run-all destroy (reverse dependency order)"
-  [[ "$AUTO_APPROVE" == "1" ]] && exec terragrunt run-all destroy --working-dir "$live" --terragrunt-non-interactive
-  exec terragrunt run-all destroy --working-dir "$live"
+  if [[ "$KEEP_ECR" == "1" ]]; then
+    step "8. destroy units individually in reverse-dependency order (05-ecr preserved)"
+    for layer in "${keep_ecr_destroy_order[@]}"; do
+      [[ -d "$live/$layer" ]] || { yellow "  (skip $layer — not present)"; continue; }
+      bold "  ── destroying $layer ──"
+      terragrunt destroy --working-dir "$live/$layer" ${ni_flag[@]+"${ni_flag[@]}"} \
+        || { red "  destroy failed for $layer — stopping. Fix the error and re-run (teardown is idempotent); 05-ecr untouched."; exit 1; }
+    done
+    green "  all target layers destroyed — 05-ecr and its images are intact."
+    exit 0
+  fi
+  step "8. terragrunt run --all destroy (reverse dependency order)"
+  exec terragrunt run --all destroy --working-dir "$live" ${ni_flag[@]+"${ni_flag[@]}"}
 else
-  echo "Next — destroy the layers (reverse order is handled automatically):"
-  echo "    make destroy-all ENV=$ENV"
-  echo "  or: terragrunt run-all destroy --working-dir $live"
+  echo "Next — destroy the layers:"
+  if [[ "$KEEP_ECR" == "1" ]]; then
+    echo "    KEEP_ECR=1 RUN_DESTROY=1 scripts/teardown.sh $ENV      # per-layer, skips 05-ecr"
+    echo "    (add AUTO_APPROVE=1 to avoid a confirm prompt on each layer)"
+    echo "  05-ecr is preserved — its repos and images are kept."
+  else
+    echo "    make destroy-all ENV=$ENV"
+    echo "  or: terragrunt run --all destroy --working-dir $live"
+  fi
   echo
   echo "If a subnet/SG/VPC delete still fails with DependencyViolation, re-run this"
   echo "script (the ENI/LB sweep is idempotent) then retry the destroy."
