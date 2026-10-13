@@ -84,15 +84,17 @@ module "eks" {
     }
     vpc-cni = {
       before_compute = true
-      # Pin a recent VPC CNI: the bundled aws-network-policy-agent in the older
-      # default (v1.22.4 / agent v1.4.0) mishandles cross-node ClusterIP traffic
-      # under NetworkPolicy enforcement, which silently dropped ArgoCD's own
-      # controller->repo-server (and CoreDNS) traffic and stalled every GitOps
-      # sync. v1.23.2+ ships the agent fixes. Keep enforcement ON here (explicit)
-      # so network segmentation stays intact on the fixed agent.
+      # NetworkPolicy enforcement is DISABLED. The aws-network-policy-agent drops
+      # cross-node ClusterIP traffic (ArgoCD controller->repo-server and even
+      # ->CoreDNS), stalling every GitOps sync. The newest agent available for
+      # this k8s version (CNI v1.23.2-eksbuild.3 bundles agent v1.4.3) still
+      # exhibits it, so upgrading the agent did not resolve it -- enforcement off
+      # is the reliable state. Segmentation, if needed, should be done with a CNI
+      # that enforces reliably (e.g. Cilium) rather than the VPC CNI agent here.
+      # The version stays pinned so the CNI itself remains current.
       addon_version = "v1.23.2-eksbuild.3"
       configuration_values = jsonencode({
-        enableNetworkPolicy = "true"
+        enableNetworkPolicy = "false"
       })
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "OVERWRITE"
