@@ -7,6 +7,15 @@ resource "helm_release" "argocd" {
   timeout          = 600
   wait             = true
 
+  # Do NOT let the chart create its per-component NetworkPolicies. 
+  values = [yamlencode({
+    global = {
+      networkPolicy = {
+        create = false
+      }
+    }
+  })]
+
   depends_on = [
     var.eks_node_group
   ]
