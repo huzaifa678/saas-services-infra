@@ -93,3 +93,23 @@ resource "aws_vpc_security_group_ingress_rule" "node_to_node_dns_udp" {
   ip_protocol                  = "udp"
   tags                         = var.tags
 }
+
+resource "aws_vpc_security_group_ingress_rule" "node_to_node_cilium_vxlan" {
+  security_group_id            = aws_security_group.eks_nodes.id
+  description                  = "Cilium VXLAN overlay (node-to-node)"
+  referenced_security_group_id = aws_security_group.eks_nodes.id
+  from_port                    = 8472
+  to_port                      = 8472
+  ip_protocol                  = "udp"
+  tags                         = var.tags
+}
+
+resource "aws_vpc_security_group_ingress_rule" "node_to_node_cilium_health" {
+  security_group_id            = aws_security_group.eks_nodes.id
+  description                  = "Cilium health checks (node-to-node)"
+  referenced_security_group_id = aws_security_group.eks_nodes.id
+  from_port                    = 4240
+  to_port                      = 4240
+  ip_protocol                  = "tcp"
+  tags                         = var.tags
+}
