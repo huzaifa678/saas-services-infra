@@ -198,7 +198,7 @@ Key points:
   on GitHub-hosted runners. This is why `45-rbac` (step 5) must land first — it maps `tf-apply`
   to `ci-deployers`, the identity that layer then runs as.
 
-`make apply-all ENV=<env>` resolves the steady-state DAG via `terragrunt run-all`; the
+`make apply-all ENV=<env>` resolves the steady-state DAG via `terragrunt run --all`; the
 CI-substrate layers are applied by the steps above, not by `apply-all`.
 
 ### The runner's GitHub App (step 4 inputs)

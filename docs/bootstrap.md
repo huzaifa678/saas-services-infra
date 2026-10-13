@@ -52,7 +52,7 @@ bootstrap  (first — no deps)
      └── runner ───┘   (needs bootstrap + 00-network + 10-platform)
 ```
 
-`make apply-all ENV=<env>` resolves this DAG automatically via `terragrunt run-all`.
+`make apply-all ENV=<env>` resolves this DAG automatically via `terragrunt run --all`.
 
 ---
 
@@ -66,12 +66,14 @@ EKS endpoints, `modules/runner-peering` connects the two so the kubectl layers
 1. a VPC peering connection (same account/region, auto-accepted),
 2. routes in **both** VPCs (runner → app CIDR, app → runner CIDR),
 3. a **443 ingress** on the cluster security group from the runner CIDR,
-4. association of the **EKS private hosted zone** with the runner VPC, so the API FQDN
+4. **cross-VPC DNS resolution** over the peering, so the EKS private API FQDN
    resolves to the private ENIs from the runner side.
 
-If EKS named its private hosted zone differently from the endpoint FQDN, set
-`eks_private_zone_name`; to manage that DNS yourself, set
-`associate_eks_private_zone = false`.
+DNS uses peering resolution rather than a hosted-zone association because modern EKS
+puts the API endpoint's private hosted zone in an AWS-service-owned account
+(`Owner.OwningService = eks.amazonaws.com`), which cannot be looked up or associated
+from this account. To manage that DNS yourself, set
+`enable_peering_dns_resolution = false`.
 
 ---
 
@@ -131,6 +133,23 @@ make register-runner ENV=test KEY=app-private-key.pem
 #    GitHub ▸ Actions ▸ cluster-bootstrap ▸ Run (environment: test, scope: full-layer)
 #    (This runs on the in-VPC self-hosted runner from step 4, so it reaches the
 #     private EKS API; the protected-Environment approval is the only human action.)
+
+# 6. ECR registry (standalone, no deps) — must exist before images/charts are
+#    pushed. Holds every service image + the per-env bootstrap-runner toolchain.
+make apply ENV=test LAYER=05-ecr
+
+# 7. Remaining infra layers via the steady-state workflow (as tf-apply):
+#    GitHub ▸ Actions ▸ infra ▸ Run (environment: test, target: all)
+#    Applies 20-data, 30-edge, 40-observability, 50-addons-helm in order.
+#    (50-addons-helm bootstraps ArgoCD, which then deploys the CD repo's addons
+#     + microservices. seed-secrets from step 2 must already exist: 30-edge reads
+#     auth0, 40-observability reads opensearch-master.)
+
+# 8. Service application secrets (separate live/services tree). Each unit builds
+#    the composite `saas/<svc>` secret the CD-repo microservice ExternalSecrets
+#    read. Needs 20-data (per-DB secrets) + seed-secrets (step 2: stripe/auth-jwt/
+#    llm) to exist. NOT part of infra.yml and NOT deployed by ArgoCD.
+make svc-apply-all ENV=test
 ```
 
 > **Why the workflow, not `make apply`?** The ci-deployer RBAC holds `bind`/`escalate`,
@@ -190,3 +209,9 @@ validates the federated provider exists when their roles are created.
 - The last standing cluster-admin is now the **gated `cluster-bootstrap` role only**
   (`include_caller_as_cluster_admin = false` is the default), assumable solely through an
   approved deployment to the protected GitHub Environment.
+- **Application layer (outside `infra.yml`):** the per-service `saas/<svc>` composite
+  secrets live in the separate `live/services/<env>` tree and are applied with
+  `make svc-apply-all ENV=<env>` (step 8). Each reads its per-DB secret from `20-data`
+  and the shared app secrets from `seed-secrets` (step 2). The microservices themselves
+  are **not** Terraform — ArgoCD (the CD repo's `microservices` ApplicationSet) pulls
+  their Helm charts from ECR and their ExternalSecrets resolve `saas/<svc>` at runtime.

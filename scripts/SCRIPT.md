@@ -134,7 +134,7 @@ drop the role, breaking everything bound to it.
 # `teardown.sh` — pre-destroy cleanup
 
 Cleans up the AWS resources that are **not** managed by Terraform/Terragrunt so a
-subsequent `terragrunt run-all destroy` (or `make destroy-all ENV=<env>`) actually
+subsequent `terragrunt run --all destroy` (or `make destroy-all ENV=<env>`) actually
 completes instead of hanging on `DependencyViolation`.
 
 Several things in a running env are created outside the TF graph and therefore are
@@ -175,10 +175,10 @@ gracefully.
 | 6 | Empty the ECR repositories (`05-ecr` repos + `saas-<env>-bootstrap-runner`) | Non-empty repos refuse to delete |
 | 7 | Disable RDS `deletion_protection` for the env | Lets the DB instances be destroyed |
 | 7b | *(opt-in `PURGE_SECRETS=1`)* force-delete `saas/<env>/*` + the runner app-key secret | Remove non-TF secrets; avoid "scheduled for deletion" collisions on re-provision |
-| 8 | Print (or run) the destroy | Hand off to `terragrunt run-all destroy` |
+| 8 | Print (or run) the destroy | Hand off to `terragrunt run --all destroy` |
 
 Only after this does the layer destroy run — reverse dependency order is handled by
-`terragrunt run-all destroy` / `make destroy-all`.
+`terragrunt run --all destroy` / `make destroy-all`.
 
 ---
 
@@ -188,7 +188,7 @@ Only after this does the layer destroy run — reverse dependency order is handl
 # cleanup only, then print the next step (default)
 scripts/teardown.sh test
 
-# cleanup, then run terragrunt run-all destroy for the env
+# cleanup, then run terragrunt run --all destroy for the env
 RUN_DESTROY=1 scripts/teardown.sh test
 
 # skip the confirmation prompt
