@@ -80,10 +80,6 @@ variable "auth0_client_secret" {
   sensitive = true
 }
 
-# opensearch_master_username / opensearch_master_password are read from the
-# Secrets Manager secret "saas/<env>/opensearch-master" (see main.tf local.opensearch),
-# not passed from CI.
-
 # ── Inputs supplied by Terragrunt dependency blocks ──────────────────────────
 # From 00-network:
 variable "vpc_id" { type = string }
@@ -100,17 +96,4 @@ variable "karpenter_interruption_queue_name" { type = string }
 variable "keycloak_db_endpoint" {
   type    = string
   default = ""
-}
-# From 40-observability:
-variable "otel_collector_irsa_role_arn" {
-  type    = string
-  default = null
-}
-variable "prometheus_endpoint" {
-  type    = string
-  default = null
-}
-variable "opensearch_endpoint" {
-  type    = string
-  default = null
 }

@@ -334,6 +334,15 @@ workflows:
                     --description "GitOps contract identity slice for the eso delivery mode (CD repo)" \
                     --secret-string "$INFRA_CONTRACT"
                 fi ;;
+              40-observability-*)
+                # AMP / OpenSearch endpoints born in this layer -> observability
+                # contract, rendered into the OTel collector values by the CD repo.
+                ENVN="${PROJECT_NAME#40-observability-}"
+                OBS=$(terragrunt output -json gitops_contract_observability)
+                aws ssm put-parameter \
+                  --name "/saas/${ENVN}/gitops-contract-observability" \
+                  --type SecureString --tier Intelligent-Tiering --overwrite \
+                  --value "$OBS" ;;
               *)
                 echo "no gitops contract for $PROJECT_NAME" ;;
             esac

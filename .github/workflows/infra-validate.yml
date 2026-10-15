@@ -87,6 +87,14 @@ jobs:
       # Each layer plans independently: Terragrunt fills unapplied upstream
       # dependencies from mock_outputs, so this is a policy preview, not a real
       # ordered apply. Kept serial to bound concurrent state access.
+      #
+      # 50-addons-helm is cluster-facing: its kubectl/kubernetes/helm providers
+      # would connect to the EKS API during the plan REFRESH, which a hermetic
+      # public runner cannot reach (mock endpoint resolves to nothing, real
+      # endpoint is private). We keep it in the preview but plan it with
+      # -refresh=false (see the step below) so no existing object is read — the
+      # create/update diff still renders for the policy gate. 45-rbac/bootstrap/
+      # runner stay out entirely; their gate runs at Atlantis apply (in-VPC).
       max-parallel: 1
       matrix:
         layer:
@@ -124,6 +132,13 @@ jobs:
 
       - name: plan + policy gate (${{ matrix.layer }})
         run: |
-          make plan     ENV=test LAYER=${{ matrix.layer }}
-          make conftest ENV=test LAYER=${{ matrix.layer }}
-          make checkov  ENV=test LAYER=${{ matrix.layer }}
+          # Cluster-facing layers can't refresh against a mock/private API from a
+          # public runner, plan them without reading live objects. The create/
+          # update diff still renders for conftest/checkov.
+          PLAN_ARGS=""
+          case "${{ matrix.layer }}" in
+            50-addons-helm) PLAN_ARGS="-refresh=false" ;;
+          esac
+          make plan     ENV=test LAYER=${{ matrix.layer }} TG_ARGS="$PLAN_ARGS"
+          make conftest ENV=test LAYER=${{ matrix.layer }} TG_ARGS="$PLAN_ARGS"
+          make checkov  ENV=test LAYER=${{ matrix.layer }} TG_ARGS="$PLAN_ARGS"

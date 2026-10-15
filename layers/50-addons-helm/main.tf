@@ -35,21 +35,8 @@ module "guardrails" {
   observability               = var.observability
 }
 
-# OpenSearch (ELK) master credentials — same out-of-band Secrets Manager secret
-# the observability layer reads (the OTel collector connects with them). Never
-# passed from CI; only present for the elk stack.
-data "aws_secretsmanager_secret_version" "opensearch" {
-  count     = var.observability[0] == "elk" ? 1 : 0
-  secret_id = "saas/${var.environment}/opensearch-master"
-}
-
-locals {
-  opensearch = var.observability[0] == "elk" ? jsondecode(data.aws_secretsmanager_secret_version.opensearch[0].secret_string) : { username = "admin", password = "" }
-}
-
-# modules/otel is a sibling of modules/k8s-and-helm, so it does not inherit the
-# provider configuration declared inside that module. The cluster-facing providers
-# are therefore configured here, at the root.
+# The cluster-facing providers are configured here, at the root, because
+# modules/k8s-and-helm does not re-declare them.
 provider "kubectl" {
   host                   = var.cluster_endpoint
   cluster_ca_certificate = base64decode(var.cluster_ca)
@@ -108,22 +95,7 @@ module "k8s" {
   observability = var.observability
 }
 
-# The OTel collector provisions `aws_eks_addon` and `kubectl_manifest` resources,
-# so it needs live cluster credentials and belongs here rather than in the
-# observability layer, which is pure AWS.
-module "otel" {
-  source = "../../modules/otel"
-
-  cluster_name                 = var.cluster_name
-  otel_collector_irsa_role_arn = var.otel_collector_irsa_role_arn
-  prometheus_endpoint          = var.prometheus_endpoint
-  opensearch_endpoint          = var.opensearch_endpoint
-
-  opensearch_username = local.opensearch.username
-  opensearch_password = local.opensearch.password
-
-  region        = var.region
-  observability = var.observability
-
-  depends_on = [module.k8s]
-}
+# The OTel collector itself (ServiceAccount, config, Deployment) is managed by
+# ArgoCD in the CD repo under gitops/observability/*/otel-collector. Its AWS IAM
+# role + Pod Identity binding are created in 40-observability. Nothing OTel-related
+# is applied from Terraform any more.

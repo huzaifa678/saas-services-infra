@@ -86,6 +86,20 @@ jobs:
             --type SecureString --tier Intelligent-Tiering --overwrite \
             --value "$CONTRACT"
 
+      # ── Observability contract (40-observability only). Carries the AMP /
+      # OpenSearch endpoints born in this layer; consumed by the CD renderer
+      # (--obs-contract) to render the OTel collector values. ─────────────────
+      - name: Publish observability contract to SSM
+        if: ${{ inputs.layer == '40-observability' }}
+        run: |
+          set -euo pipefail
+          OBS=$(terragrunt output -json gitops_contract_observability \
+            --working-dir live/${{ inputs.environment }}/${{ inputs.layer }})
+          aws ssm put-parameter \
+            --name "/saas/${{ inputs.environment }}/gitops-contract-observability" \
+            --type SecureString --tier Intelligent-Tiering --overwrite \
+            --value "$OBS"
+
       - name: Publish infra-contract to Secrets Manager (eso mode)
         if: ${{ inputs.publish_contract }}
         env:

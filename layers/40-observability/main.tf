@@ -35,18 +35,29 @@ locals {
 }
 
 # Pure AWS: managed Grafana / Prometheus workspaces, the OpenSearch domain, and
-# the IAM roles the OTel collector assumes. The collector's Kubernetes objects
-# live in 50-addons-helm, which is the only layer holding cluster credentials.
+# the IAM role the OTel collector assumes. The collector's Kubernetes objects
+# live in the CD repo (GitOps); this layer only creates the AWS side and binds
+# the role to the collector's ServiceAccount via EKS Pod Identity below.
 module "observability" {
   source = "../../modules/observability"
 
-  stack             = var.observability[0]
-  oidc_provider_arn = var.oidc_provider_arn
-  oidc_issuer       = var.oidc_issuer
+  stack = var.observability[0]
 
   subnet_ids       = var.private_subnets
   opensearch_sg_id = var.opensearch_sg_id
 
   opensearch_master_username = local.opensearch.username
   opensearch_master_password = local.opensearch.password
+}
+
+# EKS Pod Identity binding for the OTel collector: the pod running as
+# monitoring/otel-collector assumes the collector role through
+# pods.eks.amazonaws.com (the eks-pod-identity-agent addon is installed in
+# modules/eks). Replaces the former IRSA/OIDC trust. The namespace/SA must match
+# the collector's ServiceAccount in the CD repo.
+resource "aws_eks_pod_identity_association" "otel_collector" {
+  cluster_name    = var.cluster_name
+  namespace       = "monitoring"
+  service_account = "otel-collector"
+  role_arn        = module.observability.otel_collector_role_arn
 }

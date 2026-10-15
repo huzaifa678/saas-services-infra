@@ -14,8 +14,7 @@ dependency "platform" {
   config_path                             = "../10-platform"
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
   mock_outputs = {
-    oidc_provider_arn = "arn:aws:iam::000000000000:oidc-provider/mock"
-    oidc_issuer       = "https://oidc.eks.us-east-1.amazonaws.com/id/MOCK"
+    cluster_name = "saas-eks-mock"
   }
 }
 
@@ -28,8 +27,7 @@ dependency "data" {
 }
 
 inputs = {
-  private_subnets   = dependency.network.outputs.private_subnets
-  oidc_provider_arn = dependency.platform.outputs.oidc_provider_arn
-  oidc_issuer       = dependency.platform.outputs.oidc_issuer
-  opensearch_sg_id  = dependency.data.outputs.opensearch_sg_id
+  private_subnets  = dependency.network.outputs.private_subnets
+  cluster_name     = dependency.platform.outputs.cluster_name
+  opensearch_sg_id = dependency.data.outputs.opensearch_sg_id
 }

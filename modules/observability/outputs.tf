@@ -18,10 +18,11 @@ output "opensearch_dashboard_endpoint" {
   value       = try(module.elk[0].opensearch_dashboard_endpoint, null)
 }
 
-output "otel_collector_irsa_role_arn" {
+output "otel_collector_role_arn" {
   description = <<-EOT
-    Role the OTel collector assumes. Consumed by the 50-addons-helm layer, which
-    owns the collector's Kubernetes resources.
+    Role the OTel collector assumes via EKS Pod Identity. The collector's
+    Kubernetes resources live in the CD repo; this layer binds the role to the
+    collector's namespace/ServiceAccount with an aws_eks_pod_identity_association.
   EOT
-  value       = local.otel_irsa_role_arn
+  value       = local.otel_collector_role_arn
 }
