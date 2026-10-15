@@ -30,6 +30,13 @@ module "guardrails" {
 locals {
   security = module.guardrails.security
   tags     = module.guardrails.common_tags
+
+  # Addon images that are built from a Dockerfile in the CD repo and pushed here
+  # (not microservices, functions, or the runner toolchain). logstash-msk is the
+  # custom Logstash image carrying the AWS MSK IAM auth jar — the CD repo's
+  # build-logstash workflow pushes <registry>/logstash-msk:<sha> and renders the
+  # elk logstash values from it.
+  addon_images = ["logstash-msk"]
 }
 
 # Dedicated CMK for the registry so the ECR layer carries no dependency on
@@ -53,7 +60,7 @@ module "ecr" {
   # Microservice images plus the Crossplane composition function packages. Both
   # share the registry's posture; the function repo names must match what the
   # build-function workflow pushes to (<registry>/<function>).
-  repositories   = concat(var.services, var.functions, var.bootstrap_images_environment)
+  repositories   = concat(var.services, var.functions, var.bootstrap_images_environment, local.addon_images)
   immutable_tags = local.security.ecr_immutable_tags
   scan_on_push   = local.security.ecr_scan_on_push
   kms_encryption = local.security.ecr_kms_encryption

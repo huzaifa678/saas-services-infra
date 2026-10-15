@@ -83,3 +83,11 @@ variable "observability" {
   type        = list(string)
   default     = ["elk"]
 }
+
+# DRAFT: enables the docker.elastic.co pull-through cache (see ecr-pull-through.tf).
+# Default false so a normal apply is a no-op until the credential secret is seeded
+# and the CD image refs are re-pointed at the "elastic/" cache prefix.
+variable "enable_elastic_pull_through_cache" {
+  type    = bool
+  default = false
+}
