@@ -4,6 +4,6 @@ output "cluster_name" {
 }
 
 output "observability_stack" {
-  description = "Which observability stack the OTel collector was pointed at."
+  description = "Observability stack(s) selected for this cluster."
   value       = var.observability
 }
