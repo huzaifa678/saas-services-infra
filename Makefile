@@ -86,7 +86,7 @@ policy-test: opa-fmt-check opa-test checkov-test ## All hermetic policy tests
 .PHONY: plan
 plan: 
 	@test -n "$(LAYER)" || { echo "LAYER is required, e.g. make plan ENV=prod LAYER=20-data"; exit 1; }
-	terragrunt plan $(TG_CACHE) --working-dir $(UNIT)
+	terragrunt plan $(TG_CACHE) --working-dir $(UNIT) $(TG_ARGS)
 
 .PHONY: apply
 apply:
@@ -154,7 +154,7 @@ svc-apply-all: ## make svc-apply-all ENV=test — apply every service's saas/<sv
 .PHONY: conftest
 conftest: 
 	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
-	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin
+	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin $(TG_ARGS)
 	terragrunt show --working-dir $(UNIT) -json tfplan.bin > $(UNIT)/plan.json
 	conftest test $(UNIT)/plan.json \
 	  --policy $(POLICY_DIR)/opa/terraform \
@@ -165,7 +165,7 @@ conftest:
 .PHONY: checkov
 checkov:
 	@test -n "$(LAYER)" || { echo "LAYER is required"; exit 1; }
-	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin
+	terragrunt plan --working-dir $(UNIT) -out=tfplan.bin $(TG_ARGS)
 	terragrunt show --working-dir $(UNIT) -json tfplan.bin > $(UNIT)/plan.json
 	checkov --config-file .checkov.yaml -f $(UNIT)/plan.json
 
