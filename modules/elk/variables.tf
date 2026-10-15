@@ -37,11 +37,3 @@ variable "master_user_password" {
   type      = string
   sensitive = true
 }
-
-variable "oidc_provider_arn" {
-  type = string
-}
-
-variable "oidc_issuer" {
-  type = string
-}

@@ -67,7 +67,9 @@ variable "observability" {
 # From 00-network:
 variable "private_subnets" { type = list(string) }
 # From 10-platform:
-variable "oidc_provider_arn" { type = string }
-variable "oidc_issuer" { type = string }
+variable "cluster_name" {
+  type        = string
+  description = "EKS cluster name, for the OTel collector Pod Identity association."
+}
 # From 20-data:
 variable "opensearch_sg_id" { type = string }

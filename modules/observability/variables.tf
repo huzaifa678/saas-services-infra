@@ -8,16 +8,6 @@ variable "stack" {
   }
 }
 
-variable "oidc_provider_arn" {
-  type        = string
-  description = "OIDC provider ARN from EKS module"
-}
-
-variable "oidc_issuer" {
-  type        = string
-  description = "OIDC issuer URL from EKS module"
-}
-
 # Grafana-specific
 variable "grafana_workspace_name" {
   type    = string

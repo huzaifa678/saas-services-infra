@@ -13,9 +13,7 @@ module "grafana" {
   count  = var.stack == "grafana" ? 1 : 0
   source = "../grafana"
 
-  workspace_name    = var.grafana_workspace_name
-  oidc_provider_arn = var.oidc_provider_arn
-  oidc_issuer       = var.oidc_issuer
+  workspace_name = var.grafana_workspace_name
 }
 
 module "elk" {
@@ -27,8 +25,6 @@ module "elk" {
   opensearch_sg_id     = var.opensearch_sg_id
   master_user_name     = var.opensearch_master_username
   master_user_password = var.opensearch_master_password
-  oidc_provider_arn    = var.oidc_provider_arn
-  oidc_issuer          = var.oidc_issuer
 }
 
 locals {
@@ -36,8 +32,8 @@ locals {
     try(module.grafana[0].prometheus_workspace_endpoint, null)
   ) : try(module.elk[0].prometheus_workspace_endpoint, null)
 
-  otel_irsa_role_arn = try(
-    module.elk[0].otel_collector_irsa_role_arn,
-    try(module.grafana[0].otel_collector_irsa_role_arn, null)
+  otel_collector_role_arn = try(
+    module.elk[0].otel_collector_role_arn,
+    try(module.grafana[0].otel_collector_role_arn, null)
   )
 }

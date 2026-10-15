@@ -21,35 +21,31 @@ resource "aws_iam_role_policy_attachment" "grafana_cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchReadOnlyAccess"
 }
 
-resource "aws_iam_role" "otel_collector_irsa" {
-  name = "${var.workspace_name}-otel-collector-irsa"
+# OTel collector role. Assumed via EKS Pod Identity.
+resource "aws_iam_role" "otel_collector" {
+  name = "${var.workspace_name}-otel-collector"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = var.oidc_provider_arn }
-      Action    = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "${replace(var.oidc_issuer, "https://", "")}:sub" = "system:serviceaccount:monitoring:otel-collector"
-        }
-      }
+      Principal = { Service = "pods.eks.amazonaws.com" }
+      Action    = ["sts:AssumeRole", "sts:TagSession"]
     }]
   })
 }
 
 resource "aws_iam_role_policy_attachment" "otel_collector_amp_write" {
-  role       = aws_iam_role.otel_collector_irsa.name
+  role       = aws_iam_role.otel_collector.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess"
 }
 
 resource "aws_iam_role_policy_attachment" "otel_collector_xray_write" {
-  role       = aws_iam_role.otel_collector_irsa.name
+  role       = aws_iam_role.otel_collector.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
 resource "aws_iam_role_policy_attachment" "otel_collector_cloudwatch_write" {
-  role       = aws_iam_role.otel_collector_irsa.name
+  role       = aws_iam_role.otel_collector.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
