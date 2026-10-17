@@ -48,12 +48,6 @@ resource "kubectl_manifest" "external_dns_app" {
   depends_on = [helm_release.argocd]
 }
 
-resource "kubectl_manifest" "external_secrets_app" {
-  yaml_body  = file("${path.module}/argo-external-secrets.yaml.tpl")
-  wait       = true
-  depends_on = [helm_release.argocd]
-}
-
 resource "kubectl_manifest" "keycloak_app" {
   count = var.auth_provider == "keycloak" ? 1 : 0
   yaml_body = templatefile("${path.module}/argo-keycloak.yaml.tpl", {
