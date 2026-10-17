@@ -29,6 +29,13 @@ output "gitops_contract_observability" {
         namespace       = "monitoring"
         service_account = "otel-collector"
       }
+      # Velero backup bucket (role bound via Pod Identity above). The CD renderer
+      # fills the Velero BackupStorageLocation from this.
+      backup = {
+        bucket          = module.velero.bucket_name
+        namespace       = "velero"
+        service_account = "velero"
+      }
     }
   }
 }

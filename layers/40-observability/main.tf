@@ -61,3 +61,17 @@ resource "aws_eks_pod_identity_association" "otel_collector" {
   service_account = "otel-collector"
   role_arn        = module.observability.otel_collector_role_arn
 }
+
+module "velero" {
+  source = "../../modules/velero"
+
+  name   = "${var.project}-${var.environment}"
+  region = var.region
+}
+
+resource "aws_eks_pod_identity_association" "velero" {
+  cluster_name    = var.cluster_name
+  namespace       = "velero"
+  service_account = "velero"
+  role_arn        = module.velero.role_arn
+}
