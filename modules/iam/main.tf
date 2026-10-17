@@ -57,15 +57,55 @@ resource "aws_iam_policy" "external_secrets_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret",
-        "secretsmanager:ListSecrets",
-      ]
-      Resource = "*"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:ListSecrets",
+        ]
+        Resource = "*"
+      },
+      {
+        # The SaaS SecretsManager secrets are encrypted with a customer-managed KMS
+        # key, so GetSecretValue also needs kms:Decrypt — without it ESO fails with
+        # "AccessDeniedException: Access to KMS is not allowed". Scoped via
+        # kms:ViaService so this role can only use the key through Secrets Manager.
+        # (This role backs the external-secrets controller through EKS Pod Identity,
+        # despite the legacy -irsa suffix in its name.)
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.${data.aws_region.this.name}.amazonaws.com"
+          }
+        }
+      },
+      {
+        # The ECRAuthorizationToken generator (argocd-ecr-credentials addon) mints a
+        # short-lived ECR token so ArgoCD can pull the microservice Helm charts from
+        # oci://<registry>/helm. GetAuthorizationToken is account-wide by AWS design.
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        # The minted token authenticates as THIS role, so ArgoCD's pull is authorized
+        # by these actions on the Helm chart repositories (repository/helm/*).
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchCheckLayerAvailability",
+        ]
+        Resource = "arn:aws:ecr:${data.aws_region.this.name}:${data.aws_caller_identity.this.account_id}:repository/helm/*"
+      },
+    ]
   })
 }
 
