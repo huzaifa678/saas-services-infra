@@ -14,6 +14,21 @@ locals {
   # smallest configuration that survives one broker loss without losing writes.
   replication_factor = min(var.number_of_broker_nodes, 3)
   min_insync         = local.replication_factor >= 3 ? 2 : 1
+
+  msk_server_properties = <<-PROPS
+    auto.create.topics.enable=${var.auto_create_topics}
+    default.replication.factor=${local.replication_factor}
+    min.insync.replicas=${local.min_insync}
+    num.partitions=${var.num_partitions}
+    log.retention.hours=${var.log_retention_hours}
+  PROPS
+
+  # MSK configuration names are immutable AND permanently reserved even after the
+  # configuration is deleted, so a fixed name cannot be recreated after a failed
+  # apply, nor survive a force-new change such as kafka_versions. Suffixing the
+  # name with a content hash gives every revision a fresh, collision-free name and
+  # lets create_before_destroy swap configurations without a 409 name conflict.
+  msk_config_name = "${var.cluster_name}-config-${substr(sha256("${var.kafka_version}\n${local.msk_server_properties}"), 0, 8)}"
 }
 
 resource "aws_msk_cluster" "this" {
@@ -111,16 +126,9 @@ resource "aws_cloudwatch_log_group" "msk" {
 }
 
 resource "aws_msk_configuration" "this" {
-  name           = "${var.cluster_name}-config"
-  kafka_versions = [var.kafka_version]
-
-  server_properties = <<-PROPS
-    auto.create.topics.enable=${var.auto_create_topics}
-    default.replication.factor=${local.replication_factor}
-    min.insync.replicas=${local.min_insync}
-    num.partitions=${var.num_partitions}
-    log.retention.hours=${var.log_retention_hours}
-  PROPS
+  name              = local.msk_config_name
+  kafka_versions    = [var.kafka_version]
+  server_properties = local.msk_server_properties
 
   lifecycle {
     create_before_destroy = true
