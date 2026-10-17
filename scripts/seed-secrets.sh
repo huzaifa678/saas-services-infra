@@ -48,6 +48,16 @@ put "saas/${ENV}/opensearch-master" "$(jq -nc \
   --arg p "${TF_VAR_opensearch_master_password:-}" \
   '{username:$u, password:$p}')"
 
+# ECR pull-through cache credential for docker.elastic.co (Kibana/Elasticsearch
+# image mirror — 05-ecr, enable_elastic_pull_through_cache). The name MUST start
+# with "ecr-pullthroughcache/" (ECR requirement) and is account-global (no <env>).
+# docker.elastic.co serves anonymous pulls, so the fields default to "anonymous";
+# set TF_VAR_elastic_registry_{username,token} to use real Elastic creds.
+put "ecr-pullthroughcache/elastic" "$(jq -nc \
+  --arg u "${TF_VAR_elastic_registry_username:-anonymous}" \
+  --arg t "${TF_VAR_elastic_registry_token:-anonymous}" \
+  '{username:$u, accessToken:$t}')"
+
 put "saas/${ENV}/auth0" "$(jq -nc \
   --arg i "${TF_VAR_ava_oidc_client_id:-}" \
   --arg c "${TF_VAR_ava_oidc_client_secret:-}" \
