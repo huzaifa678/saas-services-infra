@@ -119,6 +119,28 @@ module "eks" {
       max_size     = var.max_size
       desired_size = var.desired_size
 
+      # SSM Session Manager access to the nodes. The private-only EKS endpoint is
+      # reachable only by port-forwarding `kubectl` through a node via SSM. Two
+      # things are required: this policy on the node role (so the agent can
+      # register), and the agent itself actually running — the AL2023 EKS AMI does
+      # NOT start amazon-ssm-agent by default, so cloudinit_pre_nodeadm below
+      # installs (if missing) and enables it before the node joins.
+      iam_role_additional_policies = {
+        AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      }
+
+      cloudinit_pre_nodeadm = [
+        {
+          content_type = "text/x-shellscript; charset=\"us-ascii\""
+          content      = <<-EOT
+            #!/bin/bash
+            systemctl enable --now amazon-ssm-agent 2>/dev/null || {
+              dnf install -y amazon-ssm-agent && systemctl enable --now amazon-ssm-agent
+            }
+          EOT
+        }
+      ]
+
       # The module creates the node<->control-plane security group and its rules.
       # We additionally attach the external node SG (from modules/node-security-
       # group) so the data-tier SGs, which allow that SG as their only ingress
