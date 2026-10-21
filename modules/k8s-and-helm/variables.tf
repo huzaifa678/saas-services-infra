@@ -55,7 +55,3 @@ variable "observability" {
   type    = list(string)
   default = ["grafana"]
 }
-
-variable "karpenter_interruption_queue_name" {
-  type = string
-}

@@ -91,7 +91,6 @@ variable "cluster_ca" {
   sensitive = true
 }
 variable "eks_node_group" { type = any }
-variable "karpenter_interruption_queue_name" { type = string }
 # From 20-data:
 variable "keycloak_db_endpoint" {
   type    = string

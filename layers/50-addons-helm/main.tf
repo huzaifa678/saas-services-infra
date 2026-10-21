@@ -82,8 +82,6 @@ module "k8s" {
   cluster_ca       = var.cluster_ca
   eks_node_group   = var.eks_node_group
 
-  karpenter_interruption_queue_name = var.karpenter_interruption_queue_name
-
   auth_provider        = var.auth_provider
   keycloak_db_endpoint = var.keycloak_db_endpoint
   keycloak_hostname    = var.keycloak_hostname
