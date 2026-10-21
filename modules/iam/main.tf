@@ -95,13 +95,13 @@ resource "aws_iam_policy" "external_secrets_policy" {
         Resource = "*"
       },
       {
-        # The minted token authenticates as THIS role, so ArgoCD's pull is authorized
-        # by these actions on the Helm chart repositories (repository/helm/*).
         Effect = "Allow"
         Action = [
           "ecr:BatchGetImage",
           "ecr:GetDownloadUrlForLayer",
           "ecr:BatchCheckLayerAvailability",
+          "ecr:ListImages",
+          "ecr:DescribeImages",
         ]
         Resource = "arn:aws:ecr:${data.aws_region.this.name}:${data.aws_caller_identity.this.account_id}:repository/helm/*"
       },
