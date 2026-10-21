@@ -107,6 +107,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
           "ec2:CreateLaunchTemplate",
         ]
         Resource = [
+          "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:fleet/*",
           "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:instance/*",
           "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:spot-instances-request/*",
           "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:security-group/*",
@@ -115,6 +116,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
           "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:volume/*",
           "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:network-interface/*",
           "arn:aws:ec2:*::image/*",
+          "arn:aws:ec2:*::snapshot/*",
         ]
         Condition = {
           StringEquals = {
