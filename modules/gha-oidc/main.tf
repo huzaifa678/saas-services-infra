@@ -202,3 +202,8 @@ resource "aws_iam_role_policy_attachment" "cluster_bootstrap" {
   role       = aws_iam_role.cluster_bootstrap.name
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/${var.apply_managed_policy}"
 }
+
+resource "aws_iam_role_policy_attachment" "cluster_bootstrap_iam" {
+  role       = aws_iam_role.cluster_bootstrap.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/IAMFullAccess"
+}
