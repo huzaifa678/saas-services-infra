@@ -30,4 +30,4 @@ output "name_prefix" {
 
 output "schema_registry_arn" { value = aws_glue_registry.schema_registry.arn }
 
-output "vpc_flow_log_group_arn" { value = aws_cloudwatch_log_group.vpc_flow_logs.arn }
+output "vpc_flow_log_bucket_arn" { value = aws_s3_bucket.vpc_flow_logs.arn }

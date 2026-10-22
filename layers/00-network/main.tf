@@ -90,52 +90,84 @@ resource "aws_kms_key_policy" "main" {
 
 # ─── VPC flow logs ───────────────────────────────────────────────────────────
 
-resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-  name              = "/aws/vpc/${var.cluster_name}-flow-logs"
-  retention_in_days = module.guardrails.security.vpc_flow_log_retention_days
-  kms_key_id        = aws_kms_key.main.arn
-}
-
-resource "aws_iam_role" "vpc_flow_log" {
-  name = "${var.cluster_name}-vpc-flow-log-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-      Condition = {
-        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
-      }
-    }]
-  })
-}
-
 data "aws_caller_identity" "current" {}
 
-# Scoped to the flow log group rather than "*". The Describe* actions are not
-# resource-scopable and are separated out.
-resource "aws_iam_role_policy" "vpc_flow_log" {
-  name = "${var.cluster_name}-vpc-flow-log-policy"
-  role = aws_iam_role.vpc_flow_log.id
+resource "aws_s3_bucket" "vpc_flow_logs" {
+  bucket        = "${var.cluster_name}-vpc-flow-logs-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true
+  tags          = { Name = "${var.cluster_name}-vpc-flow-logs" }
+}
+
+resource "aws_s3_bucket_public_access_block" "vpc_flow_logs" {
+  bucket                  = aws_s3_bucket.vpc_flow_logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "vpc_flow_logs" {
+  bucket = aws_s3_bucket.vpc_flow_logs.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Expire delivered flow-log objects on the same retention window the CloudWatch
+# group used, so moving to S3 preserves the env's intended retention (dev 14 /
+# test 90 / prod 365 days) while dropping the cost.
+resource "aws_s3_bucket_lifecycle_configuration" "vpc_flow_logs" {
+  bucket = aws_s3_bucket.vpc_flow_logs.id
+  rule {
+    id     = "expire-flow-logs"
+    status = "Enabled"
+    filter {}
+    expiration {
+      days = module.guardrails.security.vpc_flow_log_retention_days
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+# VPC Flow Logs writes to S3 as the delivery.logs.amazonaws.com service principal
+# (no IAM role, unlike the CloudWatch path). The bucket policy grants that
+# principal object-write + ACL-check access, scoped to this account.
+resource "aws_s3_bucket_policy" "vpc_flow_logs" {
+  bucket = aws_s3_bucket.vpc_flow_logs.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ]
-        Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+        Sid       = "AWSLogDeliveryWrite"
+        Effect    = "Allow"
+        Principal = { Service = "delivery.logs.amazonaws.com" }
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.vpc_flow_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl"      = "bucket-owner-full-control"
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"
+          }
+        }
       },
       {
-        Effect   = "Allow"
-        Action   = ["logs:DescribeLogGroups", "logs:DescribeLogStreams"]
-        Resource = "*"
+        Sid       = "AWSLogDeliveryAclCheck"
+        Effect    = "Allow"
+        Principal = { Service = "delivery.logs.amazonaws.com" }
+        Action    = ["s3:GetBucketAcl", "s3:ListBucket"]
+        Resource  = aws_s3_bucket.vpc_flow_logs.arn
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+          ArnLike      = { "aws:SourceArn" = "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*" }
+        }
       },
     ]
   })
@@ -158,11 +190,10 @@ module "vpc" {
 
   one_nat_gateway_per_az = !module.guardrails.security.vpc_single_nat_gateway
 
-  enable_flow_log                  = module.guardrails.security.vpc_flow_logs_enabled
-  flow_log_destination_type        = "cloud-watch-logs"
-  flow_log_destination_arn         = aws_cloudwatch_log_group.vpc_flow_logs.arn
-  flow_log_cloudwatch_iam_role_arn = aws_iam_role.vpc_flow_log.arn
-  flow_log_traffic_type            = module.guardrails.security.vpc_flow_logs_traffic_type
+  enable_flow_log           = module.guardrails.security.vpc_flow_logs_enabled
+  flow_log_destination_type = "s3"
+  flow_log_destination_arn  = aws_s3_bucket.vpc_flow_logs.arn
+  flow_log_traffic_type     = module.guardrails.security.vpc_flow_logs_traffic_type
 
   public_subnet_tags = {
     "kubernetes.io/role/elb"                    = "1"
