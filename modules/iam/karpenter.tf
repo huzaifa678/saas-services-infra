@@ -105,6 +105,12 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
           "ec2:RunInstances",
           "ec2:CreateFleet",
           "ec2:CreateLaunchTemplate",
+          # CreateFleet/RunInstances tag the fleet/instance/volume AT creation via
+          # TagSpecification, which AWS authorizes as ec2:CreateTags on those create
+          # resources. It must live here (create-time, region-scoped) — the separate
+          # AllowEC2MutatingActions grant is gated on aws:ResourceTag=owned, which a
+          # not-yet-created resource can't satisfy, so CreateFleet's DryRun was denied.
+          "ec2:CreateTags",
         ]
         Resource = [
           "arn:aws:ec2:*:${data.aws_caller_identity.this.account_id}:fleet/*",
