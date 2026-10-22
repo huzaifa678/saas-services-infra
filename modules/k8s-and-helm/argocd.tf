@@ -46,14 +46,16 @@ resource "kubectl_manifest" "saas_app" {
 # orphans (does not prune) — delete the leftover `cert-manager` and `external-dns`
 # Applications from the cluster once so they stop showing as duplicates.
 
-resource "kubectl_manifest" "keycloak_app" {
-  count = var.auth_provider == "keycloak" ? 1 : 0
-  yaml_body = templatefile("${path.module}/argo-keycloak.yaml.tpl", {
-    keycloak_db_endpoint = var.keycloak_db_endpoint
-  })
-  wait       = true
-  depends_on = [helm_release.argocd]
-}
+# keycloak is no longer bootstrapped from Terraform — this was the Bitnami keycloak
+# chart (charts.bitnami.com/bitnami, targetRevision "*"), whose images Docker Hub
+# removed in the Aug 2025 Bitnami deprecation (docker.io/bitnami/keycloak → 404,
+# ImagePullBackOff) and which folded the RDS host:port into one field. Keycloak is
+# now owned by the CD repo's keycloakx addon (gitops/infra/keycloak → `keycloak-staging`,
+# official quay.io/keycloak image, same RDS via the keycloak-contract Secret).
+# NOTE (operational): no ArgoCD deletion finalizer here, so removing this only orphans
+# (does not prune) — delete the leftover `keycloak-helm` Application and its
+# keycloak-0 / keycloak-postgresql-0 from the cluster once. var.keycloak_db_endpoint /
+# var.auth_provider are now unused in this module; prune in a later cleanup.
 
 # karpenter is no longer bootstrapped from Terraform — it was migrated to the CD
 # repo's addons ApplicationSet (gitops/infra/karpenter, delivered via the eso
