@@ -56,7 +56,7 @@ jobs:
         working-directory: live/${{ inputs.environment }}/45-rbac
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Inside the toolchain container the checkout is owned by a different uid
       # than the user running git, so git refuses it as "dubious ownership" and
