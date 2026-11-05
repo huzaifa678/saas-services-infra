@@ -8,7 +8,7 @@ locals {
   # keycloak RDS in 20-data and makes the platform consistent with the CD repo,
   # which deploys Keycloak + points Backstage at Keycloak OIDC in staging.
   auth_provider = "keycloak"
-  observability = ["elk"]
+  observability = ["elk", "grafana"]
 
   # test additionally runs the standalone auth-service.
   extra_databases = {
