@@ -84,6 +84,26 @@ resource "aws_eks_access_entry" "karpenter_node" {
   type          = "EC2_LINUX"
 }
 
+# Karpenter-provisioned nodes attach ONLY the security groups matched by the
+# EC2NodeClass securityGroupSelectorTerms (tag karpenter.sh/discovery=<cluster>),
+# which otherwise matches just the custom <cluster>-nodes-sg. With a PRIVATE-only
+# API endpoint, the kubelet reaches the API through the EKS-created cluster
+# PRIMARY security group, so a Karpenter node that lacks it launches but can never
+# register — Karpenter then GCs it at the 15m registration timeout, and anything
+# pinned to a Karpenter NodePool (e.g. the ELK `data` pool) stays Pending forever.
+# Managed-node-group nodes attach the primary SG automatically; Karpenter does
+# not, so tag the primary SG for discovery too (nodes then carry both SGs: the
+# nodes-sg for Cilium/DNS rules + the primary SG for control-plane trust).
+resource "aws_ec2_tag" "karpenter_cluster_primary_sg_discovery" {
+  resource_id = module.eks.cluster_primary_security_group_id
+  key         = "karpenter.sh/discovery"
+  value       = module.eks.eks_cluster_name
+}
+
+resource "aws_iam_service_linked_role" "ec2_spot" {
+  aws_service_name = "spot.amazonaws.com"
+}
+
 locals {
   pod_identity_associations = {
     cert_manager = {
