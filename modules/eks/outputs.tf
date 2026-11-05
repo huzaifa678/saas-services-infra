@@ -24,6 +24,11 @@ output "cluster_security_group_id" {
   value       = module.eks.cluster_security_group_id
 }
 
+output "cluster_primary_security_group_id" {
+  description = "EKS-created primary SG (control-plane-to-data-plane). Managed nodes attach it automatically; Karpenter nodes must too (tagged for discovery) to register against a private API endpoint."
+  value       = module.eks.cluster_primary_security_group_id
+}
+
 output "oidc_issuer" {
   value = module.eks.cluster_oidc_issuer_url
 }
