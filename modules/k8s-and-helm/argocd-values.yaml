@@ -43,6 +43,40 @@ configs:
     # backstage-argocd-token PreSync Job (CD repo) mint an API token for it; the
     # token is the ARGOCD_AUTH_TOKEN the portal uses. No login capability.
     accounts.backstage: apiKey
+    # Gate consumers of a Crossplane AppDatabase on the claim actually being Ready.
+    # AppDatabase is a custom resource ArgoCD would otherwise treat as Healthy the
+    # instant it is applied, so a workload at a later sync-wave (airflow, billing,
+    # usage) starts before Crossplane has written the <svc>-db / airflow-db
+    # connection Secret -> CreateContainerConfigError ("secret not found"). With this
+    # health check ArgoCD holds the wave until status.conditions[Ready]=True.
+    resource.customizations.health.platform.saas.example_AppDatabase: |
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            return { status = "Healthy", message = c.reason or "Ready" }
+          end
+        end
+      end
+      return { status = "Progressing", message = "Waiting for AppDatabase to become Ready" }
+
+    # Gate the DB-migration Sync hooks (auth/subscription/agent, sync-wave -2) on the
+    # service's ExternalSecret (sync-wave -3) actually being synced. Without a health
+    # check Argo CD treats an ExternalSecret as Healthy the instant it is applied, so the
+    # migration Job at the next wave starts before ESO has written the target Secret ->
+    # CreateContainerConfigError ("secret not found"). With this check Argo CD holds the
+    # wave until status.conditions[Ready]=True (ESO reason "SecretSynced").
+    resource.customizations.health.external-secrets.io_ExternalSecret: |
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            return { status = "Healthy", message = c.reason or "SecretSynced" }
+          end
+          if c.type == "Ready" and c.status == "False" then
+            return { status = "Degraded", message = c.message or "ExternalSecret not synced" }
+          end
+        end
+      end
+      return { status = "Progressing", message = "Waiting for ExternalSecret to sync" }
 
   rbac:
     policy.default: role:readonly
