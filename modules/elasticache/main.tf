@@ -124,6 +124,11 @@ resource "aws_elasticache_replication_group" "this" {
   transit_encryption_enabled = var.transit_encryption_enabled
   kms_key_id                 = var.kms_key_arn
   auth_token                 = local.auth_token_active ? random_password.auth_token[0].result : null
+  # When migrating an existing cluster from the shared AUTH token to RBAC, ElastiCache
+  # rejects associating a user group while a token is still set unless the modify
+  # explicitly deletes the token (AuthStrategy=DELETE). ROTATE (the provider default)
+  # fails with "User group can't be associated with auth token enabled".
+  auth_token_update_strategy = var.rbac_enabled ? "DELETE" : "ROTATE"
   user_group_ids             = var.rbac_enabled ? [aws_elasticache_user_group.this[0].user_group_id] : null
 
   snapshot_retention_limit = var.snapshot_retention_days
