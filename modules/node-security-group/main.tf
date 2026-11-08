@@ -92,6 +92,19 @@ resource "aws_vpc_security_group_ingress_rule" "node_to_node_all" {
   tags                         = var.tags
 }
 
+# NodePort reachability for the internet-facing gateway NLBs (argocd / keycloak /
+# backstage / grafana), provisioned by the AWS LB Controller with
+# aws-load-balancer-type=external + nlb-target-type=instance.
+resource "aws_vpc_security_group_ingress_rule" "nlb_nodeports" {
+  security_group_id = aws_security_group.eks_nodes.id
+  description       = "Internet-facing gateway NLBs -> pinned gateway NodePorts (instance targets)"
+  cidr_ipv4         = var.vpc_cidr
+  from_port         = var.gateway_nodeport_min
+  to_port           = var.gateway_nodeport_max
+  ip_protocol       = "tcp"
+  tags              = var.tags
+}
+
 resource "aws_vpc_security_group_ingress_rule" "node_to_node_dns_tcp" {
   security_group_id            = aws_security_group.eks_nodes.id
   description                  = "Node-to-node DNS resolution (TCP)"
