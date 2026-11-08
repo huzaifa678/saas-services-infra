@@ -19,6 +19,10 @@ resource "aws_iam_policy" "route53_policy" {
       Action = [
         "route53:ChangeResourceRecordSets",
         "route53:ListHostedZones",
+        # cert-manager's DNS-01 solver calls ListHostedZonesByName (not ListHostedZones)
+        # to auto-discover the zone when the issuer sets no hostedZoneID; without this the
+        # challenge fails with AccessDenied and certs never issue.
+        "route53:ListHostedZonesByName",
         "route53:ListResourceRecordSets",
         "route53:GetChange",
       ]
