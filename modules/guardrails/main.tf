@@ -111,7 +111,7 @@ locals {
       eks_node_public_ip          = false
 
       vpc_flow_logs_enabled       = true
-      vpc_flow_logs_traffic_type  = "ALL"
+      vpc_flow_logs_traffic_type  = "REJECT"
       vpc_single_nat_gateway      = false
       vpc_flow_log_retention_days = 90
 
