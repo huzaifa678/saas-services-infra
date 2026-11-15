@@ -27,7 +27,7 @@ resource "aws_secretsmanager_secret_version" "billing_service" {
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM                     = "AWS_MSK_IAM"
     SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG                   = "software.amazon.msk.auth.iam.IAMLoginModule required;"
     SPRING_KAFKA_PROPERTIES_SASL_CLIENT_CALLBACK_HANDLER_CLASS = "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
-    SCHEMA_REGISTRY_ARN                                        = var.schema_registry_arn
+    SCHEMA_REGISTRY_URL                                        = var.schema_registry_url
     STRIPE_API_KEY                                             = data.aws_secretsmanager_secret_version.stripe.secret_string
   })
 }

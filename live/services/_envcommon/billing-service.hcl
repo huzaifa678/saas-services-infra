@@ -6,14 +6,6 @@ terraform {
   source = "${get_repo_root()}//billing-service"
 }
 
-dependency "network" {
-  config_path                             = "../../../${local.env}/00-network"
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
-  mock_outputs = {
-    schema_registry_arn = "arn:aws:glue:us-east-1:000000000000:registry/mock"
-  }
-}
-
 dependency "data" {
   config_path                             = "../../../${local.env}/20-data"
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "show"]
@@ -30,5 +22,6 @@ inputs = {
   billing_db_secret_arn   = dependency.data.outputs.db_secret_arns["billing"]
   redis_endpoint          = dependency.data.outputs.redis_endpoint
   kafka_bootstrap_brokers = dependency.data.outputs.msk_bootstrap_brokers_sasl_iam
-  schema_registry_arn     = dependency.network.outputs.schema_registry_arn
+  # Confluent-compatible registry (gitops/infra/schema-registry), in-cluster.
+  schema_registry_url = "http://schema-registry.schema-registry.svc.cluster.local:8080/apis/ccompat/v7"
 }

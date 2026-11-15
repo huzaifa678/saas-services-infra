@@ -22,6 +22,6 @@ resource "aws_secretsmanager_secret_version" "subscription_service" {
     KAFKA_SASL_MECHANISM                     = "AWS_MSK_IAM"
     KAFKA_SASL_JAAS_CONFIG                   = "software.amazon.msk.auth.iam.IAMLoginModule required;"
     KAFKA_SASL_CLIENT_CALLBACK_HANDLER_CLASS = "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
-    SCHEMA_REGISTRY_ARN                      = var.schema_registry_arn
+    SCHEMA_REGISTRY_URL                      = var.schema_registry_url
   })
 }
