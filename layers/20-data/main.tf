@@ -93,6 +93,17 @@ locals {
       topics          = ["otel-logs"]
       consumer_groups = ["logstash-otel-logs"]
     }
+    # E2E smoke runner: produces a synthetic billing.usage-charge.created event to
+    # drive the usage-service ETL end-to-end. Pod Identity SA: saas-e2e (saas-apps,
+    # the ArgoCD PostSync hook Job). Producer-only — the consumer_groups entry is
+    # present solely because the msk-iam module requires a non-empty group resource
+    # (the runner never joins a group).
+    "saas-e2e" = {
+      namespace       = "saas-apps"
+      service_account = "saas-e2e"
+      topics          = ["billing.usage-charge.created"]
+      consumer_groups = ["saas-e2e"]
+    }
   }
 
   # MSK places one broker per client subnet and requires the broker count to be an
