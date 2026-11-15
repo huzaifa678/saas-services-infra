@@ -28,6 +28,4 @@ output "name_prefix" {
   value       = module.guardrails.name_prefix
 }
 
-output "schema_registry_arn" { value = aws_glue_registry.schema_registry.arn }
-
 output "vpc_flow_log_bucket_arn" { value = aws_s3_bucket.vpc_flow_logs.arn }

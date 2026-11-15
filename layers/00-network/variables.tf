@@ -48,12 +48,6 @@ variable "private_subnets" {
   default     = ["10.0.3.0/24", "10.0.4.0/24"]
 }
 
-variable "schema_registry_name" {
-  description = "Glue schema registry name. Pinned to the existing physical name."
-  type        = string
-  default     = "saas-schema-registry"
-}
-
 variable "capacity_tier" {
   description = "Named capacity/scale tier (cost only). Passed through to guardrails; null => the env's default rung."
   type        = string

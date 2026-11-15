@@ -209,10 +209,6 @@ module "vpc" {
   tags = { Name = "${var.cluster_name}-vpc" }
 }
 
-resource "aws_glue_registry" "schema_registry" {
-  registry_name = var.schema_registry_name
-}
-
 resource "terraform_data" "network_invariants" {
   input = var.environment
 
